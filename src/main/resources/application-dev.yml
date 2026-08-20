@@ -1,0 +1,24 @@
+# Development against the managed cloud database, same as every other
+# environment. Connection details and secrets come from .env, which is
+# git-ignored and loaded by spring.config.import in application.yml.
+#
+# This profile deliberately defines no datasource or secret defaults: the only
+# difference from prod is verbosity, not where the data lives.
+
+spring:
+  flyway:
+    # One database shared by the whole team, so migrations arrive in whatever
+    # order people happen to start the app. Without this, a migration merged
+    # after someone already applied a higher version is refused forever.
+    # Deliberately NOT enabled in prod, where order is the deployment order.
+    out-of-order: true
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    com.lms: DEBUG
+    org.hibernate.SQL: DEBUG

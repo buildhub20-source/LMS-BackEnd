@@ -1,0 +1,44 @@
+# Runs the API container against the managed cloud database, matching every
+# other environment. Connection details and secrets come from ../.env, which
+# Compose reads automatically and which is git-ignored.
+#
+# A local Postgres is available but opt-in, for offline work only:
+#   docker compose --profile local-db up
+# It is not part of the default stack, and nothing should be verified solely
+# against it.
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: lms-api
+    env_file:
+      - ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+    ports:
+      - "8080:8080"
+
+  # Opt-in only. Reaching it needs DB_URL overridden to
+  # jdbc:postgresql://postgres:5432/lms and DB_SCHEMA=public.
+  postgres:
+    profiles: ["local-db"]
+    image: postgres:16-alpine
+    container_name: lms-postgres
+    environment:
+      POSTGRES_DB: lms
+      POSTGRES_USER: lms
+      POSTGRES_PASSWORD: lms
+    ports:
+      - "5432:5432"
+    volumes:
+      - lms-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms -d lms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lms-postgres-data:

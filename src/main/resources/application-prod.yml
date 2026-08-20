@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+  jpa:
+    show-sql: false
+  flyway:
+    baseline-on-migrate: false
+    clean-disabled: true
+    # Migrations apply in version order only. A gap means a release was skipped
+    # and must be investigated, not silently filled in.
+    out-of-order: false
+
+server:
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+lms:
+  app:
+    frontend-base-url: ${FRONTEND_BASE_URL}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  mail:
+    # Required in production: without a real transport, invitation and reset
+    # links are only written to the log and never reach the recipient.
+    enabled: ${MAIL_ENABLED:true}
+    from: ${MAIL_FROM}
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+
+logging:
+  level:
+    root: WARN
+    com.lms: INFO

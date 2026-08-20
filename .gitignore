@@ -1,0 +1,37 @@
+# Build output
+target/
+!.mvn/wrapper/maven-wrapper.jar
+build/
+out/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local.yml
+src/main/resources/application-local.yml
+
+# IDE metadata
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/*
+# Share the two settings that stop the language server racing Maven; keep
+# everyone's personal launch configs and local state out.
+!.vscode/settings.json
+!.vscode/extensions.json
+.settings/
+.project
+.classpath
+nbproject/
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+logs/
+*.pid
+*.hprof

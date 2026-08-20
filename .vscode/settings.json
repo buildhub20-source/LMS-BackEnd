@@ -1,0 +1,30 @@
+{
+  // target/ is Maven's output, but target/generated-sources/annotations holds
+  // the MapStruct *MapperImpl classes that source code imports. Excluding it
+  // from the watcher makes the language server miss them being regenerated
+  // after `mvn clean`, which shows up as unresolved-symbol errors in the tests
+  // that reference them. Exclude the compiled output only.
+  "files.exclude": {
+    "**/target/classes": true,
+    "**/target/test-classes": true,
+    "**/target/maven-status": true,
+    "**/target/maven-archiver": true
+  },
+  "search.exclude": {
+    "**/target/classes": true,
+    "**/target/test-classes": true
+  },
+  "files.watcherExclude": {
+    "**/target/classes/**": true,
+    "**/target/test-classes/**": true
+  },
+
+  "java.configuration.updateBuildConfiguration": "automatic",
+
+  // Left at the default (true). The language server and Maven do share target/,
+  // and running `mvn` while the IDE builds can briefly produce phantom
+  // "package does not exist" errors - a window reload clears them. That is a
+  // better trade than switching autobuild off, which costs live cross-file
+  // diagnostics and leaves annotation-processed classes unresolved.
+  "java.autobuild.enabled": true
+}

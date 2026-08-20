@@ -1,0 +1,24 @@
+package com.lms.common.audit;
+
+/** Security-relevant actions recorded in {@code audit_log}. */
+public enum AuditAction {
+
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    LOGOUT,
+    TOKEN_REFRESHED,
+    PASSWORD_CHANGED,
+    PASSWORD_RESET_REQUESTED,
+    PASSWORD_RESET,
+    ROLE_ASSIGNED,
+    ROLE_REMOVED,
+    ACCOUNT_LOCKED,
+    ACCOUNT_UNLOCKED,
+    ACCOUNT_ACTIVATED,
+    ACCOUNT_DEACTIVATED,
+    USER_INVITED,
+    INVITATION_ACCEPTED,
+    INVITATION_REVOKED,
+    INVITATION_RESENT,
+    SESSION_REVOKED
+}

@@ -17,6 +17,10 @@ public class AppProperties {
         return trimTrailingSlash(frontendBaseUrl) + "/reset-password?token=" + rawToken;
     }
 
+    public String invitationLink(String rawToken) {
+        return trimTrailingSlash(frontendBaseUrl) + "/accept-invitation?token=" + rawToken;
+    }
+
     private String trimTrailingSlash(String value) {
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
     }

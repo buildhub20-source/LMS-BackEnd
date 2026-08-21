@@ -3,15 +3,16 @@ package com.lms.invitation.service;
 import com.lms.common.audit.AuditAction;
 import com.lms.common.audit.AuditService;
 import com.lms.common.exception.BusinessRuleException;
+import com.lms.common.exception.InvalidTokenException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.mail.MailMessage;
 import com.lms.common.mail.MailSender;
 import com.lms.common.response.PageResponse;
 import com.lms.common.util.PageRequests;
-import com.lms.common.util.TemporaryPasswordGenerator;
 import com.lms.common.util.TokenGenerator;
 import com.lms.common.util.TokenHasher;
+import com.lms.config.AppProperties;
 import com.lms.config.AuthPolicyConfig;
 import com.lms.invitation.dto.request.CreateInvitationRequest;
 import com.lms.invitation.dto.response.InvitationResponse;
@@ -53,6 +54,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final MailSender mailSender;
     private final AuditService auditService;
     private final AuthPolicyConfig policy;
+    private final AppProperties appProperties;
 
     @Override
     @Transactional
@@ -66,16 +68,12 @@ public class InvitationServiceImpl implements InvitationService {
         Role role = roleService.requireByName(request.getRole());
         UUID actorId = currentActorId();
 
-        // The account is created with a temporary password and is active, so the
-        // invitee can sign in immediately. The pending invitation row below is
-        // what forces them to replace that password before doing anything else.
-        String temporaryPassword = TemporaryPasswordGenerator.generate();
-
+        // Account is inactive with no password until the invitation is accepted.
         User user = User.builder()
                 .name(request.getName().trim())
                 .email(email)
-                .password(passwordEncoder.encode(temporaryPassword))
-                .active(true)
+                .password(null)
+                .active(false)
                 .locked(false)
                 .build();
 
@@ -85,9 +83,6 @@ public class InvitationServiceImpl implements InvitationService {
         accountStatusService.recordTransition(saved.getId(), AccountStatus.ACTIVE, actorId,
                 "Account created by invitation");
 
-        // Still minted and stored: the ERD has token_hash NOT NULL, and this is
-        // what a re-introduced set-password link would redeem. Nothing is sent
-        // anywhere, so it is inert while the link route is off.
         String rawToken = TokenGenerator.urlSafeToken();
 
         Invitation invitation = Invitation.builder()
@@ -99,7 +94,7 @@ public class InvitationServiceImpl implements InvitationService {
 
         Invitation persisted = invitationRepository.save(invitation);
 
-        sendInvitationMail(saved, role.getName(), temporaryPassword);
+        sendInvitationMail(saved, role.getName(), rawToken);
 
         auditService.record(actorId, AuditAction.USER_INVITED, RESOURCE, persisted.getId(),
                 "Invited " + email + " as " + role.getName());
@@ -128,17 +123,12 @@ public class InvitationServiceImpl implements InvitationService {
             throw new BusinessRuleException("This invitation has already been accepted");
         }
 
-        // Both credentials are reissued: the old temporary password must stop
-        // working at the same moment the old link does.
         String rawToken = TokenGenerator.urlSafeToken();
-        String temporaryPassword = TemporaryPasswordGenerator.generate();
-
         invitation.setTokenHash(TokenHasher.sha256(rawToken));
         invitation.setExpiresAt(Instant.now().plus(policy.getInvitationTtl()));
-        invitation.getUser().setPassword(passwordEncoder.encode(temporaryPassword));
 
         String roleName = invitation.getUser().roleNames().stream().findFirst().orElse("member");
-        sendInvitationMail(invitation.getUser(), roleName, temporaryPassword);
+        sendInvitationMail(invitation.getUser(), roleName, rawToken);
 
         auditService.record(currentActorId(), AuditAction.INVITATION_RESENT, RESOURCE, invitation.getId(), null);
 
@@ -177,25 +167,52 @@ public class InvitationServiceImpl implements InvitationService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Invitation", id));
     }
 
-    private void sendInvitationMail(User user, String roleName, String temporaryPassword) {
+    @Override
+    @Transactional
+    public void acceptInvitation(String rawToken, String newPassword) {
+        String hash = TokenHasher.sha256(rawToken);
+        Invitation invitation = invitationRepository.findByTokenHash(hash)
+                .orElseThrow(() -> new InvalidTokenException("Invitation token is invalid"));
+
+        Instant now = Instant.now();
+
+        if (invitation.isAccepted()) {
+            throw new InvalidTokenException("Invitation has already been accepted");
+        }
+        if (invitation.isExpired(now)) {
+            throw new InvalidTokenException("Invitation has expired");
+        }
+
+        User user = invitation.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setActive(true);
+
+        invitation.setAcceptedAt(now);
+        // Nullify the hash so the token cannot be replayed.
+        invitation.setTokenHash(TokenHasher.sha256(rawToken + "-invalidated-" + now.toEpochMilli()));
+
+        auditService.record(null, AuditAction.USER_INVITED, RESOURCE, invitation.getId(),
+                "Invitation accepted by " + user.getEmail());
+
+        log.info("Invitation accepted for {}", user.getEmail());
+    }
+
+    private void sendInvitationMail(User user, String roleName, String rawToken) {
+        String link = appProperties.invitationLink(rawToken);
         String body = """
                 Hello %s,
 
                 An LMS account has been created for you as %s.
 
-                Sign in with these details and you will be asked to choose your
-                own password straight away:
+                Set your password and activate your account by clicking the link below:
 
-                    Email:              %s
-                    Temporary password: %s
+                    %s
 
-                The temporary password stops working on %s, and the moment you
-                set your own it is gone.
+                This link expires on %s.
                 """.formatted(
                 user.getName(),
                 roleName.toLowerCase(),
-                user.getEmail(),
-                temporaryPassword,
+                link,
                 Instant.now().plus(policy.getInvitationTtl()));
 
         mailSender.send(new MailMessage(user.getEmail(), "Your LMS account", body));

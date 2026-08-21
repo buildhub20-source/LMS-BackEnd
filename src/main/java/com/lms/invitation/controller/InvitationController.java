@@ -3,6 +3,7 @@ package com.lms.invitation.controller;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
 import com.lms.common.response.PageResponse;
+import com.lms.invitation.dto.request.AcceptInvitationRequest;
 import com.lms.invitation.dto.request.CreateInvitationRequest;
 import com.lms.invitation.dto.response.InvitationResponse;
 import com.lms.invitation.service.InvitationService;
@@ -27,11 +28,6 @@ import java.util.UUID;
 
 /**
  * Invitation endpoints.
- *
- * <p>Onboarding is temporary-password only: the invitee signs in with the
- * password emailed to them and is forced to replace it. There is deliberately
- * no public accept-by-link endpoint. See docs/api/authentication.md for what
- * re-introducing one would involve.
  */
 @Tag(name = "Invitations")
 @Validated
@@ -42,7 +38,7 @@ public class InvitationController {
 
     private final InvitationService invitationService;
 
-    @Operation(summary = "Create an account and email its temporary password")
+    @Operation(summary = "Create an account and email an invitation link")
     @PostMapping
     @PreAuthorize("hasAuthority('INVITATION_CREATE')")
     public ResponseEntity<ApiResponse<InvitationResponse>> invite(
@@ -50,6 +46,15 @@ public class InvitationController {
 
         InvitationResponse created = invitationService.invite(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(created, "Invitation sent"));
+    }
+
+    @Operation(summary = "Accept an invitation and set a password (public)")
+    @PostMapping("/accept")
+    public ResponseEntity<ApiResponse<Void>> accept(
+            @Valid @RequestBody AcceptInvitationRequest request) {
+
+        invitationService.acceptInvitation(request.getToken(), request.getPassword());
+        return ResponseEntity.ok(ApiResponse.message("Invitation accepted"));
     }
 
     @Operation(summary = "List invitations")

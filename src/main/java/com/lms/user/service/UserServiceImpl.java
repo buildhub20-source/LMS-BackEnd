@@ -18,12 +18,10 @@ import com.lms.user.dto.request.UpdateUserRolesRequest;
 import com.lms.user.dto.response.AccountStatusHistoryResponse;
 import com.lms.user.dto.response.UserResponse;
 import com.lms.user.entity.User;
-import com.lms.user.event.PasswordChangedEvent;
 import com.lms.user.mapper.UserMapper;
 import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -50,7 +48,6 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -127,9 +124,6 @@ public class UserServiceImpl implements UserService {
         // Every other session is invalidated: a password change is the point at
         // which previously issued refresh tokens should stop working.
         sessionService.revokeAllForUser(user.getId());
-
-        // Closes out onboarding if this was the temporary password being replaced.
-        eventPublisher.publishEvent(new PasswordChangedEvent(user.getId()));
 
         auditService.record(currentActorId(), AuditAction.PASSWORD_CHANGED, RESOURCE, user.getId(), null);
         log.info("Password changed for {}", user.getEmail());

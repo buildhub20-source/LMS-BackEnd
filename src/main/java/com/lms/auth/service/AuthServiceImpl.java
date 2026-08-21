@@ -11,12 +11,9 @@ import com.lms.auth.entity.UserSession;
 import com.lms.auth.mapper.AuthMapper;
 import com.lms.common.audit.AuditAction;
 import com.lms.common.audit.AuditService;
-import com.lms.common.constants.SecurityConstants;
 import com.lms.common.exception.ApplicationException;
 import com.lms.common.exception.ErrorCode;
 import com.lms.common.util.HttpRequests;
-import com.lms.invitation.entity.Invitation;
-import com.lms.invitation.repository.InvitationRepository;
 import com.lms.security.authentication.AuthenticationService;
 import com.lms.security.authentication.LmsUserDetails;
 import com.lms.security.jwt.JwtService;
@@ -29,10 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Set;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -58,7 +52,6 @@ public class AuthServiceImpl implements AuthService {
     private final UserMapper userMapper;
     private final AuthMapper authMapper;
     private final AuditService auditService;
-    private final InvitationRepository invitationRepository;
 
     @Override
     @Transactional
@@ -85,29 +78,21 @@ public class AuthServiceImpl implements AuthService {
             throw ex;
         }
 
-        rejectExpiredTemporaryPassword(candidate.orElse(null), email, ipAddress);
-
         User user = candidate.orElseThrow(() ->
                 new ApplicationException(ErrorCode.INVALID_CREDENTIALS, "Invalid email or password"));
-
-        boolean mustChangePassword = onboardingOutstanding(user);
 
         loginAttemptService.recordSuccess(email, user.getId(), ipAddress);
 
         SessionService.IssuedSession session = sessionService.openSession(user);
 
-        // While the temporary password is still in force the token carries no
-        // roles and no permissions, so every guarded endpoint denies it and
-        // PasswordChangeRequiredFilter closes off the rest.
-        LmsUserDetails tokenPrincipal = mustChangePassword ? onboardingPrincipal(user) : principal;
-        String accessToken = jwtService.generateAccessToken(tokenPrincipal, session.getSessionId());
+        String accessToken = jwtService.generateAccessToken(principal, session.getSessionId());
 
-        log.info("User {} signed in{}", email, mustChangePassword ? " (password change required)" : "");
+        log.info("User {} signed in", email);
 
         AuthTokens tokens = AuthTokens.bearer(accessToken, session.getRawRefreshToken(),
                 jwtService.accessTokenTtlSeconds());
 
-        return new LoginResponse(tokens, userMapper.toResponse(user), mustChangePassword);
+        return new LoginResponse(tokens, userMapper.toResponse(user), false);
     }
 
     @Override
@@ -116,12 +101,8 @@ public class AuthServiceImpl implements AuthService {
         SessionService.RotatedSession rotated = sessionService.rotate(request.getRefreshToken());
         UserSession session = rotated.getSession();
 
-        // Refresh must not be a way to trade a restricted token for a full one.
-        LmsUserDetails principal = onboardingOutstanding(session.getUser())
-                ? onboardingPrincipal(session.getUser())
-                : LmsUserDetails.from(session.getUser());
-
-        String accessToken = jwtService.generateAccessToken(principal, session.getId());
+        String accessToken = jwtService.generateAccessToken(
+                LmsUserDetails.from(session.getUser()), session.getId());
 
         auditService.record(session.getUser().getId(), AuditAction.TOKEN_REFRESHED,
                 RESOURCE, session.getId(), null);
@@ -154,41 +135,6 @@ public class AuthServiceImpl implements AuthService {
         return revoked;
     }
 
-    /**
-     * An expired invitation takes the temporary password with it, otherwise the
-     * credential would outlive the window it was issued for.
-     */
-    private void rejectExpiredTemporaryPassword(User user, String email, String ipAddress) {
-        if (user == null) {
-            return;
-        }
-        Invitation pending = invitationRepository
-                .findFirstByUserIdAndAcceptedAtIsNullOrderByCreatedAtDesc(user.getId())
-                .orElse(null);
-
-        if (pending != null && pending.isExpired(Instant.now())) {
-            loginAttemptService.recordFailure(email, user.getId(), ipAddress);
-            throw new ApplicationException(ErrorCode.ACCOUNT_DISABLED,
-                    "Your temporary password has expired. Ask an administrator to resend your invitation.");
-        }
-    }
-
-    /**
-     * True while the account is still on the temporary password issued at
-     * invite time. An outstanding invitation is what records that.
-     */
-    private boolean onboardingOutstanding(User user) {
-        return invitationRepository
-                .findFirstByUserIdAndAcceptedAtIsNullOrderByCreatedAtDesc(user.getId())
-                .isPresent();
-    }
-
-    /** A principal that can do nothing except replace its own password. */
-    private LmsUserDetails onboardingPrincipal(User user) {
-        return new LmsUserDetails(user.getId(), user.getEmail(), user.getName(), null,
-                user.isActive(), user.isLocked(),
-                Set.of(), Set.of(SecurityConstants.PASSWORD_CHANGE_ONLY), null);
-    }
 
     @Override
     public CurrentUserResponse currentUser() {

@@ -10,10 +10,9 @@ import java.util.UUID;
 /**
  * Invitation lifecycle.
  *
- * <p>This is also how user accounts come into existence: creating an invitation
- * creates the {@code users} row with a temporary password and emails it. The
- * row stays pending until the user replaces that password, which is what marks
- * the account as onboarded.
+ * <p>Creating an invitation creates the {@code users} row with a null password
+ * and {@code is_active = false}, then emails a secure link. The user sets their
+ * own password by redeeming that link, which activates the account.
  */
 public interface InvitationService {
 
@@ -23,9 +22,12 @@ public interface InvitationService {
 
     InvitationResponse findById(UUID id);
 
-    /** Issues a fresh token, invalidating the previous one, and re-sends it. */
+    /** Issues a fresh token, invalidating the previous one, and re-sends the link. */
     InvitationResponse resend(UUID id);
 
     /** Withdraws an unaccepted invitation and the account created alongside it. */
     void revoke(UUID id);
+
+    /** Validates the token, sets the user's password, and marks the invitation accepted. */
+    void acceptInvitation(String rawToken, String newPassword);
 }

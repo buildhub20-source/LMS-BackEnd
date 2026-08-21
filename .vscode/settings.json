@@ -26,5 +26,6 @@
   // "package does not exist" errors - a window reload clears them. That is a
   // better trade than switching autobuild off, which costs live cross-file
   // diagnostics and leaves annotation-processed classes unresolved.
-  "java.autobuild.enabled": true
+  "java.autobuild.enabled": true,
+  "java.compile.nullAnalysis.mode": "automatic"
 }

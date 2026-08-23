@@ -39,6 +39,7 @@ public class SecurityConfig {
             ApiPaths.AUTH + "/refresh",
             ApiPaths.AUTH + "/forgot-password",
             ApiPaths.AUTH + "/reset-password",
+            ApiPaths.AUTH + "/accept-invitation",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"

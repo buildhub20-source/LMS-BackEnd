@@ -43,10 +43,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("""
             select u from User u
-            where (:search is null
-                   or lower(u.name) like lower(concat('%', :search, '%'))
-                   or lower(u.email) like lower(concat('%', :search, '%')))
-              and (:active is null or u.active = :active)
+            where (cast(:search as String) is null
+                   or lower(u.name) like lower(concat('%', cast(:search as String), '%'))
+                   or lower(u.email) like lower(concat('%', cast(:search as String), '%')))
+              and (:active is null or cast(:active as boolean) is null or u.active = :active)
             """)
     Page<User> search(@Param("search") String search,
                       @Param("active") Boolean active,

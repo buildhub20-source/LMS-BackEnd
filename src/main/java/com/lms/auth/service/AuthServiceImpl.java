@@ -1,5 +1,6 @@
 package com.lms.auth.service;
 
+import com.lms.auth.dto.request.AcceptInvitationRequest;
 import com.lms.auth.dto.request.LoginRequest;
 import com.lms.auth.dto.request.LogoutRequest;
 import com.lms.auth.dto.request.RefreshTokenRequest;
@@ -13,18 +14,23 @@ import com.lms.common.audit.AuditAction;
 import com.lms.common.audit.AuditService;
 import com.lms.common.constants.SecurityConstants;
 import com.lms.common.exception.ApplicationException;
+import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ErrorCode;
 import com.lms.common.util.HttpRequests;
+import com.lms.common.util.TokenHasher;
 import com.lms.invitation.entity.Invitation;
 import com.lms.invitation.repository.InvitationRepository;
 import com.lms.security.authentication.AuthenticationService;
 import com.lms.security.authentication.LmsUserDetails;
 import com.lms.security.jwt.JwtService;
 import com.lms.user.entity.User;
+import com.lms.user.entity.AccountStatus;
 import com.lms.user.mapper.UserMapper;
 import com.lms.user.repository.UserRepository;
+import com.lms.user.service.AccountStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,6 +65,8 @@ public class AuthServiceImpl implements AuthService {
     private final AuthMapper authMapper;
     private final AuditService auditService;
     private final InvitationRepository invitationRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AccountStatusService accountStatusService;
 
     @Override
     @Transactional
@@ -108,6 +116,53 @@ public class AuthServiceImpl implements AuthService {
                 jwtService.accessTokenTtlSeconds());
 
         return new LoginResponse(tokens, userMapper.toResponse(user), mustChangePassword);
+    }
+
+    @Override
+    @Transactional
+    public LoginResponse acceptInvitation(AcceptInvitationRequest request) {
+        String tokenHash = TokenHasher.sha256(request.getToken());
+
+        Invitation invitation = invitationRepository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.INVALID_CREDENTIALS,
+                        "Invalid or expired invitation link."));
+
+        if (invitation.isAccepted()) {
+            throw new BusinessRuleException(
+                    "This invitation has already been accepted. Please sign in instead.");
+        }
+
+        if (invitation.isExpired(Instant.now())) {
+            throw new ApplicationException(ErrorCode.ACCOUNT_DISABLED,
+                    "This invitation link has expired. Ask an administrator to resend your invitation.");
+        }
+
+        User user = invitation.getUser();
+
+        // Set the permanent password and activate the account
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setActive(true);
+
+        // Stamp the invitation as accepted
+        invitation.setAcceptedAt(Instant.now());
+
+        // Record the ACTIVE status transition
+        accountStatusService.recordTransition(user.getId(), AccountStatus.ACTIVE, null,
+                "Account activated via invitation magic link");
+
+        // Open a full session — the user is now fully onboarded
+        LmsUserDetails principal = LmsUserDetails.from(user);
+        SessionService.IssuedSession session = sessionService.openSession(user);
+        String accessToken = jwtService.generateAccessToken(principal, session.getSessionId());
+        AuthTokens tokens = AuthTokens.bearer(accessToken, session.getRawRefreshToken(),
+                jwtService.accessTokenTtlSeconds());
+
+        auditService.record(user.getId(), AuditAction.USER_INVITED, "AUTH", invitation.getId(),
+                "Invitation accepted by " + user.getEmail());
+
+        log.info("Invitation accepted and account activated for {}", user.getEmail());
+
+        return new LoginResponse(tokens, userMapper.toResponse(user), false);
     }
 
     @Override

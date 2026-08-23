@@ -1,5 +1,6 @@
 package com.lms.auth.service;
 
+import com.lms.auth.dto.request.AcceptInvitationRequest;
 import com.lms.auth.dto.request.LoginRequest;
 import com.lms.auth.dto.request.LogoutRequest;
 import com.lms.auth.dto.request.RefreshTokenRequest;
@@ -15,6 +16,12 @@ import java.util.UUID;
 public interface AuthService {
 
     LoginResponse login(LoginRequest request);
+
+    /**
+     * Accepts a magic-link invitation token and sets the user's permanent password.
+     * Returns a full login response so the caller is immediately authenticated.
+     */
+    LoginResponse acceptInvitation(AcceptInvitationRequest request);
 
     /** Exchanges a refresh token for a new token pair, rotating the old one. */
     AuthTokens refresh(RefreshTokenRequest request);

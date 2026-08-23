@@ -9,9 +9,9 @@ import com.lms.common.mail.MailMessage;
 import com.lms.common.mail.MailSender;
 import com.lms.common.response.PageResponse;
 import com.lms.common.util.PageRequests;
-import com.lms.common.util.TemporaryPasswordGenerator;
 import com.lms.common.util.TokenGenerator;
 import com.lms.common.util.TokenHasher;
+import com.lms.config.AppProperties;
 import com.lms.config.AuthPolicyConfig;
 import com.lms.invitation.dto.request.CreateInvitationRequest;
 import com.lms.invitation.dto.response.InvitationResponse;
@@ -29,7 +29,6 @@ import com.lms.user.service.AccountStatusService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,10 +48,10 @@ public class InvitationServiceImpl implements InvitationService {
     private final RoleService roleService;
     private final AccountStatusService accountStatusService;
     private final InvitationMapper invitationMapper;
-    private final PasswordEncoder passwordEncoder;
     private final MailSender mailSender;
     private final AuditService auditService;
     private final AuthPolicyConfig policy;
+    private final AppProperties appProperties;
 
     @Override
     @Transactional
@@ -66,28 +65,22 @@ public class InvitationServiceImpl implements InvitationService {
         Role role = roleService.requireByName(request.getRole());
         UUID actorId = currentActorId();
 
-        // The account is created with a temporary password and is active, so the
-        // invitee can sign in immediately. The pending invitation row below is
-        // what forces them to replace that password before doing anything else.
-        String temporaryPassword = TemporaryPasswordGenerator.generate();
-
+        // Account is created inactive with no password.
+        // It is activated only when the user accepts the invitation and sets their password.
         User user = User.builder()
                 .name(request.getName().trim())
                 .email(email)
-                .password(passwordEncoder.encode(temporaryPassword))
-                .active(true)
+                .password(null)   // no credentials until the magic link is accepted
+                .active(false)
                 .locked(false)
                 .build();
 
         User saved = userRepository.save(user);
         saved.assignRole(role, actorId);
 
-        accountStatusService.recordTransition(saved.getId(), AccountStatus.ACTIVE, actorId,
-                "Account created by invitation");
+        accountStatusService.recordTransition(saved.getId(), AccountStatus.INACTIVE, actorId,
+                "Account created by invitation — awaiting password setup via magic link");
 
-        // Still minted and stored: the ERD has token_hash NOT NULL, and this is
-        // what a re-introduced set-password link would redeem. Nothing is sent
-        // anywhere, so it is inert while the link route is off.
         String rawToken = TokenGenerator.urlSafeToken();
 
         Invitation invitation = Invitation.builder()
@@ -99,7 +92,7 @@ public class InvitationServiceImpl implements InvitationService {
 
         Invitation persisted = invitationRepository.save(invitation);
 
-        sendInvitationMail(saved, role.getName(), temporaryPassword);
+        sendInvitationLink(saved, role.getName(), rawToken);
 
         auditService.record(actorId, AuditAction.USER_INVITED, RESOURCE, persisted.getId(),
                 "Invited " + email + " as " + role.getName());
@@ -128,21 +121,17 @@ public class InvitationServiceImpl implements InvitationService {
             throw new BusinessRuleException("This invitation has already been accepted");
         }
 
-        // Both credentials are reissued: the old temporary password must stop
-        // working at the same moment the old link does.
+        // Regenerate the token so the old link is invalidated immediately.
         String rawToken = TokenGenerator.urlSafeToken();
-        String temporaryPassword = TemporaryPasswordGenerator.generate();
-
         invitation.setTokenHash(TokenHasher.sha256(rawToken));
         invitation.setExpiresAt(Instant.now().plus(policy.getInvitationTtl()));
-        invitation.getUser().setPassword(passwordEncoder.encode(temporaryPassword));
 
         String roleName = invitation.getUser().roleNames().stream().findFirst().orElse("member");
-        sendInvitationMail(invitation.getUser(), roleName, temporaryPassword);
+        sendInvitationLink(invitation.getUser(), roleName, rawToken);
 
         auditService.record(currentActorId(), AuditAction.INVITATION_RESENT, RESOURCE, invitation.getId(), null);
 
-        log.info("Invitation for {} reissued", invitation.getUser().getEmail());
+        log.info("Invitation for {} reissued with new link", invitation.getUser().getEmail());
         return invitationMapper.toResponse(invitation);
     }
 
@@ -160,9 +149,6 @@ public class InvitationServiceImpl implements InvitationService {
         UUID userId = user.getId();
         String email = user.getEmail();
 
-        // The account exists only because of this invitation and has never been
-        // activated, so withdrawing the invitation removes both. The ERD has no
-        // revoked flag to set instead.
         invitationRepository.delete(invitation);
         userRepository.delete(user);
 
@@ -177,28 +163,34 @@ public class InvitationServiceImpl implements InvitationService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Invitation", id));
     }
 
-    private void sendInvitationMail(User user, String roleName, String temporaryPassword) {
+    /**
+     * Sends an invitation email containing a magic link.
+     * The raw token is embedded in the URL; only its SHA-256 hash is stored in the database.
+     */
+    private void sendInvitationLink(User user, String roleName, String rawToken) {
+        String link = appProperties.invitationLink(rawToken);
+        String expiresAt = Instant.now().plus(policy.getInvitationTtl()).toString()
+                .replace("T", " ").substring(0, 16) + " UTC";
+
         String body = """
                 Hello %s,
 
-                An LMS account has been created for you as %s.
+                You've been invited to join the LMS platform as %s.
 
-                Sign in with these details and you will be asked to choose your
-                own password straight away:
+                Click the link below to create your password and activate your account:
 
-                    Email:              %s
-                    Temporary password: %s
+                    %s
 
-                The temporary password stops working on %s, and the moment you
-                set your own it is gone.
+                This link expires on %s and can only be used once.
+
+                If you did not expect this invitation, you can safely ignore this email.
                 """.formatted(
                 user.getName(),
                 roleName.toLowerCase(),
-                user.getEmail(),
-                temporaryPassword,
-                Instant.now().plus(policy.getInvitationTtl()));
+                link,
+                expiresAt);
 
-        mailSender.send(new MailMessage(user.getEmail(), "Your LMS account", body));
+        mailSender.send(new MailMessage(user.getEmail(), "You're invited to LMS — create your account", body));
     }
 
     private UUID currentActorId() {

@@ -1,5 +1,6 @@
 package com.lms.auth.controller;
 
+import com.lms.auth.dto.request.AcceptInvitationRequest;
 import com.lms.auth.dto.request.ForgotPasswordRequest;
 import com.lms.auth.dto.request.LoginRequest;
 import com.lms.auth.dto.request.LogoutRequest;
@@ -43,6 +44,15 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(ApiResponse.of(authService.login(request)));
+    }
+
+    @Operation(summary = "Accept a magic-link invitation and set a permanent password",
+            description = "Public endpoint — no token required. Validates the invitation token, " +
+                    "sets the user\'s password, and returns a full login response.")
+    @PostMapping("/accept-invitation")
+    public ResponseEntity<ApiResponse<LoginResponse>> acceptInvitation(
+            @Valid @RequestBody AcceptInvitationRequest request) {
+        return ResponseEntity.ok(ApiResponse.of(authService.acceptInvitation(request)));
     }
 
     @Operation(summary = "Rotate the refresh token and receive a new token pair")

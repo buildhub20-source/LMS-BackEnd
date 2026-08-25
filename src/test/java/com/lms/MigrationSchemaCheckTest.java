@@ -1,5 +1,6 @@
 package com.lms;
 
+import com.lms.assessment.repository.AssessmentRepository;
 import com.lms.permission.repository.PermissionRepository;
 import com.lms.user.entity.User;
 import com.lms.user.repository.UserRepository;
@@ -44,10 +45,27 @@ class MigrationSchemaCheckTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private AssessmentRepository assessmentRepository;
+
     @Test
     void migrationsProduceASchemaTheEntityModelValidatesAgainst() {
         // Reaching this point means Flyway ran and ddl-auto=validate passed.
         assertThat(permissionRepository.count()).isPositive();
+    }
+
+    @Test
+    void v7AssessmentTablesAreCreatedAndValidatedByHibernate() {
+        // If V7 ran and the entity model matches the schema, this succeeds.
+        assertThat(assessmentRepository.count()).isZero();
+    }
+
+    @Test
+    void v8AssessmentPermissionsAreSeeded() {
+        assertThat(permissionRepository.findAll())
+                .extracting("name")
+                .contains("ASSESSMENT_VIEW", "ASSESSMENT_CREATE",
+                           "ASSESSMENT_UPDATE", "ASSESSMENT_DELETE", "ASSESSMENT_PUBLISH");
     }
 
     @Test
@@ -57,10 +75,14 @@ class MigrationSchemaCheckTest {
         assertThat(roleRepository.findByName("STUDENT")).isPresent();
 
         Role admin = roleRepository.findByNameWithPermissions("ADMIN").orElseThrow();
-        assertThat(admin.getPermissions()).hasSize((int) permissionRepository.count());
+        // ADMIN should hold every permission seeded across all migrations.
+        assertThat(admin.getPermissions()).hasSameSizeAs(permissionRepository.findAll());
 
         Role student = roleRepository.findByNameWithPermissions("STUDENT").orElseThrow();
-        assertThat(student.getPermissions()).extracting("name").containsExactly("COURSE_VIEW");
+        // V6 grants COURSE_VIEW; V8 adds ASSESSMENT_VIEW.
+        assertThat(student.getPermissions())
+                .extracting("name")
+                .containsExactlyInAnyOrder("COURSE_VIEW", "ASSESSMENT_VIEW");
     }
 
     @Test

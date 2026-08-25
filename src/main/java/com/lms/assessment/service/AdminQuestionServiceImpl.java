@@ -71,6 +71,7 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
                 .constraints(req.constraints())
                 .difficulty(req.difficulty())
                 .questionType(req.questionType())
+                .compiler(req.compiler())
                 .marks(req.marks())
                 .timeLimitMs(req.timeLimitMs())
                 .memoryLimitMb(req.memoryLimitMb())
@@ -145,6 +146,9 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
         }
         if (request.difficulty() != null) {
             question.setDifficulty(request.difficulty());
+        }
+        if (request.compiler() != null) {
+            question.setCompiler(request.compiler());
         }
         if (request.marks() != null) {
             question.setMarks(request.marks());

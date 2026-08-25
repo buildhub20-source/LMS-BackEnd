@@ -25,6 +25,7 @@ public interface QuestionMapper {
     @Mapping(source = "question.constraints",   target = "constraints")
     @Mapping(source = "question.difficulty",    target = "difficulty")
     @Mapping(source = "question.questionType",  target = "questionType")
+    @Mapping(source = "question.compiler",      target = "compiler")
     @Mapping(source = "marks",                  target = "marks")
     @Mapping(source = "question.timeLimitMs",   target = "timeLimitMs")
     @Mapping(source = "question.memoryLimitMb", target = "memoryLimitMb")

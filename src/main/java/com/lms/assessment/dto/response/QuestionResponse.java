@@ -23,6 +23,7 @@ public record QuestionResponse(
         int timeLimitMs,
         int memoryLimitMb,
         int questionOrder,
+        UUID sectionId,
         Instant createdAt,
         Instant updatedAt,
         List<TestCaseResponse> testCases

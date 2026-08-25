@@ -8,6 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface QuestionMapper {
@@ -31,5 +32,5 @@ public interface QuestionMapper {
     @Mapping(source = "question.createdAt",     target = "createdAt")
     @Mapping(source = "question.updatedAt",     target = "updatedAt")
     @Mapping(source = "testCases",              target = "testCases")
-    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases);
+    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, UUID sectionId, List<TestCaseResponse> testCases);
 }

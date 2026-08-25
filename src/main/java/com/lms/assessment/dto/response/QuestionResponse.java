@@ -19,6 +19,7 @@ public record QuestionResponse(
         String constraints,
         Difficulty difficulty,
         QuestionType questionType,
+        String compiler,
         int marks,
         int timeLimitMs,
         int memoryLimitMb,

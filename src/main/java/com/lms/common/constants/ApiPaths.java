@@ -11,6 +11,15 @@ public final class ApiPaths {
     public static final String PERMISSIONS = API_V1 + "/permissions";
     public static final String INVITATIONS = API_V1 + "/invitations";
 
+    // Assessment module — admin operations
+    public static final String ADMIN_ASSESSMENTS  = API_V1 + "/admin/assessments";
+    public static final String ADMIN_QUESTIONS    = API_V1 + "/admin/questions";
+    public static final String ADMIN_TEST_CASES   = API_V1 + "/admin/test-cases";
+
+    // Assessment module — student operations
+    public static final String STUDENT_ASSESSMENTS = API_V1 + "/student/assessments";
+    public static final String STUDENT_ATTEMPTS    = API_V1 + "/student/attempts";
+
     private ApiPaths() {
     }
 }

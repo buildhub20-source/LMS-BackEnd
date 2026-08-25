@@ -12,6 +12,9 @@ spring:
     # after someone already applied a higher version is refused forever.
     # Deliberately NOT enabled in prod, where order is the deployment order.
     out-of-order: true
+    # TEMPORARY: skip checksum validation for modified V7/V8 migrations.
+    # Remove this flag after the DB schema is stable.
+    validate-on-migrate: false
   jpa:
     show-sql: true
     hibernate:

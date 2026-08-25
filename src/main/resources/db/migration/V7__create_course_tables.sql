@@ -1,0 +1,21 @@
+-- Phase 1: Course domain table
+CREATE TABLE lms.courses (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    title            VARCHAR(255) NOT NULL,
+    description      TEXT,
+    status           VARCHAR(30)  NOT NULL DEFAULT 'DRAFT',
+    level            VARCHAR(30),
+    thumbnail_key    VARCHAR(512),
+    created_by       UUID         NOT NULL REFERENCES lms.users(id),
+    instructor_id    UUID         REFERENCES lms.users(id),
+    duration_minutes INT,
+    rejection_reason TEXT,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    published_at     TIMESTAMPTZ,
+    archived_at      TIMESTAMPTZ
+);
+
+CREATE INDEX idx_courses_status      ON lms.courses(status);
+CREATE INDEX idx_courses_instructor  ON lms.courses(instructor_id);
+CREATE INDEX idx_courses_created_by  ON lms.courses(created_by);

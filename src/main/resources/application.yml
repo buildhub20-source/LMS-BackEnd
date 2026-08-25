@@ -126,6 +126,15 @@ lms:
       password-reset-ttl: ${PASSWORD_RESET_TTL:30m}
       max-sessions-per-user: ${MAX_SESSIONS_PER_USER:10}
 
+  storage:
+    provider: ${STORAGE_PROVIDER:CLOUDFLARE_R2}
+    r2:
+      endpoint: ${R2_ENDPOINT:}
+      access-key: ${R2_ACCESS_KEY:}
+      secret-key: ${R2_SECRET_KEY:}
+      bucket: ${R2_BUCKET:}
+      public-url: ${R2_PUBLIC_URL:}
+
 logging:
   level:
     com.lms: ${LOG_LEVEL_APP:INFO}

@@ -17,6 +17,8 @@ spring:
     validate-on-migrate: false
   jpa:
     show-sql: true
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
         format_sql: true

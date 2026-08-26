@@ -2,6 +2,7 @@ package com.lms.assessment.controller;
 
 import com.lms.assessment.dto.request.CreateAssessmentRequest;
 import com.lms.assessment.dto.request.UpdateAssessmentRequest;
+import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
 import com.lms.assessment.entity.AssessmentStatus;
@@ -160,5 +161,16 @@ public class AdminAssessmentController {
     public ResponseEntity<ApiResponse<AssessmentResponse>> archive(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));
+    }
+
+    // ---------------------------------------------------------------
+    // GET /api/v1/admin/assessments/{id}/analytics
+    // ---------------------------------------------------------------
+
+    @Operation(summary = "Get statistical analytics and individual student performance for an assessment")
+    @GetMapping("/{id}/analytics")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
     }
 }

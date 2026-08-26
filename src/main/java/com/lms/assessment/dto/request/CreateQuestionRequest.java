@@ -34,6 +34,8 @@ public record CreateQuestionRequest(
 
         QuestionType questionType,
 
+        String compiler,
+
         @Min(value = 1, message = "Marks must be at least 1")
         @Max(value = 100, message = "Marks cannot exceed 100")
         Integer marks,
@@ -58,6 +60,7 @@ public record CreateQuestionRequest(
                 constraints,
                 difficulty != null ? difficulty : Difficulty.MEDIUM,
                 questionType != null ? questionType : QuestionType.CODING,
+                compiler != null && !compiler.isBlank() ? compiler : "ALL",
                 marks != null ? marks : 10,
                 timeLimitMs != null ? timeLimitMs : 2000,
                 memoryLimitMb != null ? memoryLimitMb : 256,

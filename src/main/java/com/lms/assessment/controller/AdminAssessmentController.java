@@ -161,4 +161,18 @@ public class AdminAssessmentController {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));
     }
+<<<<<<< Updated upstream
+=======
+
+    // ---------------------------------------------------------------
+    // GET /api/v1/admin/assessments/{id}/analytics
+    // ---------------------------------------------------------------
+
+    @Operation(summary = "Get statistical analytics and individual student performance for an assessment")
+    @GetMapping("/{id}/analytics")
+    @PreAuthorize("hasAuthority('ASSESSMENT_ANALYTICS_VIEW') or hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
+    }
+>>>>>>> Stashed changes
 }

@@ -89,8 +89,6 @@ public class CurriculumController {
             @RequestBody @Valid com.lms.course.dto.request.GenerateUploadUrlRequest request) {
         return ResponseEntity.ok(ApiResponse.of(curriculumService.generateUploadUrl(courseId, moduleId, lessonId, request)));
     }
-<<<<<<< Updated upstream
-=======
 
     @PostMapping(value = "/modules/{moduleId}/lessons/{lessonId}/recording/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<com.lms.course.dto.response.GenerateUploadUrlResponse>> uploadRecording(
@@ -107,5 +105,5 @@ public class CurriculumController {
             @PathVariable UUID courseId) {
         return ResponseEntity.ok(ApiResponse.of(curriculumService.getCourseAnalytics(courseId)));
     }
->>>>>>> Stashed changes
+
 }

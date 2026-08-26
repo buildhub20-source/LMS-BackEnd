@@ -1,5 +1,5 @@
 -- Phase 1: Course domain table
-CREATE TABLE lms.courses (
+CREATE TABLE IF NOT EXISTS lms.courses (
     id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     title            VARCHAR(255) NOT NULL,
     description      TEXT,
@@ -16,6 +16,6 @@ CREATE TABLE lms.courses (
     archived_at      TIMESTAMPTZ
 );
 
-CREATE INDEX idx_courses_status      ON lms.courses(status);
-CREATE INDEX idx_courses_instructor  ON lms.courses(instructor_id);
-CREATE INDEX idx_courses_created_by  ON lms.courses(created_by);
+CREATE INDEX IF NOT EXISTS idx_courses_status      ON lms.courses(status);
+CREATE INDEX IF NOT EXISTS idx_courses_instructor  ON lms.courses(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_courses_created_by  ON lms.courses(created_by);

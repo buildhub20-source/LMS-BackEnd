@@ -20,5 +20,6 @@ public record StudentQuestionResponse(
         int timeLimitMs,
         int memoryLimitMb,
         int questionOrder,
+        UUID sectionId, // Added for UI grouping
         List<StudentTestCaseResponse> sampleTestCases
 ) {}

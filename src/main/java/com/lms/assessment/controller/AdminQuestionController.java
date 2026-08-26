@@ -45,6 +45,19 @@ public class AdminQuestionController {
                 .body(ApiResponse.of(response, "Question added to assessment successfully"));
     }
 
+    @Operation(summary = "Add a coding question to a specific section within an assessment")
+    @PostMapping("/{assessmentId}/sections/{sectionId}/questions")
+    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE')")
+    public ResponseEntity<ApiResponse<QuestionResponse>> addQuestionToSection(
+            @PathVariable UUID assessmentId,
+            @PathVariable UUID sectionId,
+            @Valid @RequestBody CreateQuestionRequest request) {
+
+        QuestionResponse response = questionService.addQuestion(assessmentId, sectionId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.of(response, "Question added to section successfully"));
+    }
+
     @Operation(summary = "Get all questions for an assessment")
     @GetMapping("/{assessmentId}/questions")
     @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")

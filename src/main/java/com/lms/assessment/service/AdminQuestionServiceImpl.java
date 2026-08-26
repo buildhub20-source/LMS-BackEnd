@@ -8,11 +8,13 @@ import com.lms.assessment.dto.response.TestCaseResponse;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentQuestion;
 import com.lms.assessment.entity.Question;
+import com.lms.assessment.entity.Section;
 import com.lms.assessment.entity.TestCase;
 import com.lms.assessment.mapper.QuestionMapper;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
 import com.lms.assessment.repository.QuestionRepository;
+import com.lms.assessment.repository.SectionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceNotFoundException;
@@ -36,15 +38,29 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
     private final QuestionRepository questionRepository;
     private final TestCaseRepository testCaseRepository;
     private final AssessmentQuestionRepository assessmentQuestionRepository;
+    private final SectionRepository sectionRepository;
     private final QuestionMapper questionMapper;
 
     @Override
     @Transactional
     public QuestionResponse addQuestion(UUID assessmentId, CreateQuestionRequest request) {
+        return addQuestion(assessmentId, null, request);
+    }
+
+    @Override
+    @Transactional
+    public QuestionResponse addQuestion(UUID assessmentId, UUID sectionId, CreateQuestionRequest request) {
         Assessment assessment = requireAssessment(assessmentId);
         requireDraft(assessment, "add question to");
 
         CreateQuestionRequest req = request.withDefaults();
+
+        // Resolve section if provided
+        Section section = null;
+        if (sectionId != null) {
+            section = sectionRepository.findById(sectionId)
+                    .orElseThrow(() -> ResourceNotFoundException.of("Section", sectionId));
+        }
 
         // 1. Create and save Question
         Question question = Question.builder()
@@ -55,6 +71,7 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
                 .constraints(req.constraints())
                 .difficulty(req.difficulty())
                 .questionType(req.questionType())
+                .compiler(req.compiler())
                 .marks(req.marks())
                 .timeLimitMs(req.timeLimitMs())
                 .memoryLimitMb(req.memoryLimitMb())
@@ -72,6 +89,7 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
                 .question(savedQuestion)
                 .questionOrder(nextOrder)
                 .marks(req.marks())
+                .section(section)
                 .build();
 
         assessmentQuestionRepository.save(assessmentQuestion);
@@ -79,10 +97,11 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
         // 4. Update Assessment totalMarks
         recalculateTotalMarks(assessment);
 
-        log.info("Admin added question {} to assessment {}", savedQuestion.getId(), assessmentId);
+        log.info("Admin added question {} to assessment {} (section={})",
+                savedQuestion.getId(), assessmentId, sectionId);
 
         List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(testCases);
-        return questionMapper.toQuestionResponse(savedQuestion, nextOrder, req.marks(), tcResponses);
+        return questionMapper.toQuestionResponse(savedQuestion, nextOrder, req.marks(), sectionId, tcResponses);
     }
 
     @Override
@@ -97,7 +116,8 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
             Question q = aq.getQuestion();
             List<TestCase> tcs = testCaseRepository.findByQuestionIdOrderByIdAsc(q.getId());
             List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(tcs);
-            result.add(questionMapper.toQuestionResponse(q, aq.getQuestionOrder(), aq.getMarks(), tcResponses));
+            UUID sectionId = aq.getSection() != null ? aq.getSection().getId() : null;
+            result.add(questionMapper.toQuestionResponse(q, aq.getQuestionOrder(), aq.getMarks(), sectionId, tcResponses));
         }
 
         return result;
@@ -126,6 +146,9 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
         }
         if (request.difficulty() != null) {
             question.setDifficulty(request.difficulty());
+        }
+        if (request.compiler() != null) {
+            question.setCompiler(request.compiler());
         }
         if (request.marks() != null) {
             question.setMarks(request.marks());
@@ -167,8 +190,10 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
         int resolvedOrder = allJunctions.isEmpty() ? 0 : allJunctions.get(0).getQuestionOrder();
         int resolvedMarks = saved.getMarks();
 
+        UUID resolvedSectionId = allJunctions.isEmpty() || allJunctions.get(0).getSection() == null ? null : allJunctions.get(0).getSection().getId();
+
         List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(testCases);
-        return questionMapper.toQuestionResponse(saved, resolvedOrder, resolvedMarks, tcResponses);
+        return questionMapper.toQuestionResponse(saved, resolvedOrder, resolvedMarks, resolvedSectionId, tcResponses);
     }
 
     @Override

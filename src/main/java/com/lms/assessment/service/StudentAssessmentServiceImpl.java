@@ -248,6 +248,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                     q.getTimeLimitMs(),
                     q.getMemoryLimitMb(),
                     aq.getQuestionOrder(),
+                    aq.getSection() != null ? aq.getSection().getId() : null,
                     tcResponses
             ));
         }

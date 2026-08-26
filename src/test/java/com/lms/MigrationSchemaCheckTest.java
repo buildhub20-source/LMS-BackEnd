@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @TestPropertySource(properties = {
         "spring.flyway.enabled=true",
         "spring.jpa.hibernate.ddl-auto=validate",
-        "spring.datasource.url=jdbc:h2:mem:migrationcheck;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE"
+        "spring.datasource.url=jdbc:h2:mem:migrationcheck;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;INIT=CREATE SCHEMA IF NOT EXISTS lms"
 })
 class MigrationSchemaCheckTest {
 
@@ -55,13 +55,13 @@ class MigrationSchemaCheckTest {
     }
 
     @Test
-    void v7AssessmentTablesAreCreatedAndValidatedByHibernate() {
-        // If V7 ran and the entity model matches the schema, this succeeds.
+    void assessmentTablesAreCreatedAndValidatedByHibernate() {
+        // If the assessment migration ran and the entity model matches, this succeeds.
         assertThat(assessmentRepository.count()).isZero();
     }
 
     @Test
-    void v8AssessmentPermissionsAreSeeded() {
+    void assessmentPermissionsAreSeeded() {
         assertThat(permissionRepository.findAll())
                 .extracting("name")
                 .contains("ASSESSMENT_VIEW", "ASSESSMENT_CREATE",

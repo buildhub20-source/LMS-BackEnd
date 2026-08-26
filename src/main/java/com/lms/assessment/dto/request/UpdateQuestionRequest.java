@@ -26,8 +26,6 @@ public record UpdateQuestionRequest(
 
         Difficulty difficulty,
 
-        String compiler,
-
         @Min(value = 1, message = "Marks must be at least 1")
         @Max(value = 100, message = "Marks cannot exceed 100")
         Integer marks,

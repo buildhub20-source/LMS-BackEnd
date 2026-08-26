@@ -64,10 +64,6 @@ public class Question extends Timestamped {
     private QuestionType questionType = QuestionType.CODING;
 
     @Builder.Default
-    @Column(name = "compiler", length = 50)
-    private String compiler = "ALL";
-
-    @Builder.Default
     @Column(name = "marks", nullable = false)
     private int marks = 10;
 

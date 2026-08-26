@@ -88,7 +88,6 @@ public class CourseServiceImpl implements CourseService {
         if (StringUtils.hasText(request.getDescription())) course.setDescription(request.getDescription());
         if (StringUtils.hasText(request.getLevel()))       course.setLevel(request.getLevel());
         if (request.getDurationMinutes() != null)          course.setDurationMinutes(request.getDurationMinutes());
-        if (request.getInstructorId() != null)             course.setInstructorId(request.getInstructorId());
 
         Course saved = courseRepository.save(course);
         auditService.record(AuditAction.COURSE_UPDATED, RESOURCE, saved.getId(), null);

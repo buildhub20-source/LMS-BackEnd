@@ -68,7 +68,6 @@ public class CourseMapper {
         lResp.setRecordingId(lesson.getRecordingId());
         lResp.setDurationMinutes(lesson.getDurationMinutes());
         lResp.setFreePreview(lesson.isFreePreview());
-        lResp.setThumbnailUrl(lesson.getThumbnailUrl());
         lResp.setSortOrder(lesson.getSortOrder());
         return lResp;
     }

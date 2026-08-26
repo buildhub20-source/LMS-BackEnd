@@ -1,6 +1,6 @@
 # Authentication & Authorization (Module 1)
 
-Implements the Module 1 specification: administrator-issued temporary passwords,
+Implements the Module 1 specification: administrator-issued invitation links,
 JWT access tokens, rotating refresh sessions, RBAC, and security tracking.
 
 ## Token model
@@ -50,14 +50,14 @@ builds the request principal with a null credential.
 | DELETE | `/api/v1/auth/sessions/{id}` | authenticated | Revoke one own session |
 | POST | `/api/v1/auth/forgot-password` | public | Request a reset link |
 | POST | `/api/v1/auth/reset-password` | public | Redeem a reset token |
-| POST | `/api/v1/invitations` | `INVITATION_CREATE` | Create account, email its temporary password |
-| POST | `/api/v1/invitations/{id}/resend` | `INVITATION_MANAGE` | New temporary password, resend |
+| POST | `/api/v1/auth/accept-invitation` | public | Claim an invitation and set a password |
+| POST | `/api/v1/invitations` | `INVITATION_CREATE` | Create account, email its accept link |
+| POST | `/api/v1/invitations/{id}/resend` | `INVITATION_MANAGE` | New token and expiry, resend |
 | DELETE | `/api/v1/invitations/{id}` | `INVITATION_MANAGE` | Withdraw invitation |
 
-`/refresh`, `/forgot-password` and `/reset-password` are public because the
-caller has no access token at that point — the refresh or reset token *is* the
-credential. Onboarding needs no public endpoint: the invitee signs in with the
-temporary password like any other user.
+`/refresh`, `/forgot-password`, `/reset-password` and `/accept-invitation` are
+public because the caller has no access token at that point — the refresh,
+reset or invitation token *is* the credential.
 
 ## Login flow
 
@@ -71,10 +71,9 @@ temporary password like any other user.
    `account_status_history` + `audit_log`.
 6. On success → open a `user_session`, mint the access token, return both.
 
-An account still on its temporary password signs in normally but comes back
-with `mustChangePassword: true` and a token that authorizes nothing but the
-password change. If the invitation has expired, the temporary password is dead
-and login returns `403 ACCOUNT_DISABLED`.
+An account whose invitation has not been claimed has no password at all, so it
+cannot reach a successful login: step 3 fails and returns
+`401 INVALID_CREDENTIALS`. See the note on `mustChangePassword` below.
 
 ## Refresh rotation
 
@@ -110,69 +109,54 @@ from the later of the window start and the last successful login. Unlocking is
 an administrator action (`POST /users/{id}/unlock`, `USER_LOCK`) — there is no
 automatic expiry of the lock.
 
-## Onboarding: temporary password
+## Onboarding: invitation link
 
-An administrator creates the account; the invitee receives a temporary password
-by email and is forced to replace it on first use. There is exactly one path in.
+An administrator creates the account; the invitee receives a one-time link by
+email and sets their own password through it. There is exactly one path in.
 
 ```
 ADMIN → POST /invitations {name, email, role}
-      → users row: bcrypt(temporary password), is_active TRUE, role assigned
-      → user_invitation row: expires_at
-      → email to the INVITEE ONLY, carrying the temporary password
+      → users row: password NULL, is_active FALSE, role assigned
+      → user_invitation row: token_hash, expires_at
+      → email to the INVITEE ONLY, carrying the accept link
 
-USER  → POST /auth/login  →  200 { mustChangePassword: true, restricted token }
-      → POST /users/me/password {currentPassword: temp, newPassword: …}
-      → accepted_at stamped, onboarding complete
+USER  → POST /auth/accept-invitation {token, newPassword}
+      → password set, is_active TRUE, accepted_at stamped
+      → 200 LoginResponse: signed in immediately, no second login needed
 ```
 
-**A pending invitation is the "temporary password still in force" flag.** The
-ERD has no `must_change_password` column and none was added: an invitation row
-with `accepted_at IS NULL` already means exactly that, and its `expires_at`
-gives the temporary password an expiry for free.
+**The account holds no credential until the link is claimed.** `password` is
+NULL and `is_active` is FALSE, and `User.canAuthenticate()` requires both a
+password and an active flag — so an unclaimed invitation cannot be signed into
+at all. There is no window in which a half-onboarded account can authenticate.
 
-**The administrator never sees the temporary password.** It is generated
-server-side, hashed immediately, and appears only in the email to the invitee —
-so there is no window in which a second person holds a working credential. A
-test asserts the create-invitation response does not contain it.
+**The administrator never sees the token.** It is generated server-side, stored
+only as a SHA-256 hash, and appears in plaintext solely in the email to the
+invitee — so there is no window in which a second person holds a working
+credential. A test asserts the create-invitation response does not contain it.
 
-**While the temporary password is live, the token grants nothing.** Login
-succeeds and returns `mustChangePassword: true`, but the access token carries no
-roles and no permissions, so every `@PreAuthorize` endpoint denies it.
-`PasswordChangeRequiredFilter` closes the remaining gap — the endpoints that
-only require authentication — with an explicit allowlist:
+**A token is single-use and time-boxed.** Accepting stamps `accepted_at`;
+replaying the same token returns `422`, and an unknown or expired token returns
+`401`. `POST /invitations/{id}/resend` mints a fresh token and expiry, which
+invalidates the previous link immediately, and refuses outright once the
+invitation has been accepted.
 
-```
-POST /users/me/password    GET  /auth/me
-POST /auth/logout          POST /auth/logout-all
-```
+### The `mustChangePassword` path is now unreachable
 
-Anything else returns `403 PASSWORD_CHANGE_REQUIRED`. Refresh re-derives the
-restriction from the database, so it cannot be used to trade a restricted token
-for a full one.
+`LoginResponse.mustChangePassword` and `PasswordChangeRequiredFilter` are
+left over from an earlier temporary-password design. They key off "the user has
+an invitation with `accepted_at IS NULL`", which under this flow implies the
+account has no password and therefore cannot reach a successful login at all.
+`resend` refuses accepted invitations, so an active account cannot be pushed
+back into that state either.
 
-**An expired invitation kills the temporary password**, so the credential never
-outlives its window: login returns `403 ACCOUNT_DISABLED` with a message to ask
-for a resend. `POST /invitations/{id}/resend` issues a new temporary password
-and a new expiry, retiring the old one.
+They are harmless but dead. Left in place rather than removed because the filter
+is part of the security chain and ripping it out is a bigger change than the
+value of deleting unused code — worth doing deliberately, not incidentally.
 
 Revoking an unaccepted invitation deletes both the invitation and the account,
 because the ERD has no revoked flag and the account exists solely because of
 that invitation.
-
-### Re-introducing a set-password link later
-
-A link route existed and was removed deliberately to keep one path in. The
-groundwork is still there, so bringing it back is additive:
-
-- `user_invitation.token_hash` is still minted and stored on every invite. The
-  ERD requires the column, and the value is inert while nothing sends it.
-- What was removed: `POST /invitations/accept`, `GET /invitations/validate`,
-  their DTOs, the two entries in `SecurityConfig.PUBLIC_ENDPOINTS`, and
-  `AppProperties.invitationLink(...)`.
-- Both routes converged on the same completion step — stamping `accepted_at` —
-  which is now driven by `PasswordChangedEvent`, so a new route only has to
-  reach that same point.
 
 ## Authorization
 

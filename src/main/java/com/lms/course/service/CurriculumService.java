@@ -251,28 +251,27 @@ public class CurriculumService {
         if (lesson.getLessonType() == com.lms.course.entity.LessonType.TEXT) {
             throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Upload URLs are only for media and file lessons");
         }
-
-        // Create a pending course recording
-        com.lms.course.entity.CourseRecording recording = new com.lms.course.entity.CourseRecording();
-        recording.setCourseId(courseId);
-        recording.setStorageProvider("CLOUDFLARE_R2");
-        recording.setFileName(request.getFileName());
-        recording.setFileSize(request.getFileSize());
-        recording.setMimeType(request.getMimeType());
-        recording.setStatus(com.lms.course.entity.RecordingStatus.PENDING);
-        // We set createdBy to the current user
-        recording.setCreatedBy(com.lms.security.authentication.AuthenticationService.requirePrincipal().getUserId());
-
-        recording = recordingRepository.save(recording);
-
-        // Generate the object key: courses/{courseId}/lessons/{lessonId}/{recordingId}-{filename}
+        // Generate the object key upfront so storage_key is never null on insert
         String extension = "";
         int extIndex = request.getFileName().lastIndexOf('.');
         if (extIndex > 0) {
             extension = request.getFileName().substring(extIndex);
         }
-        String key = String.format("courses/%s/lessons/%s/%s%s", courseId, lessonId, recording.getId(), extension);
+        UUID recordingId = UUID.randomUUID();
+        String key = String.format("courses/%s/lessons/%s/%s%s", courseId, lessonId, recordingId, extension);
+
+        // Create a pending course recording
+        com.lms.course.entity.CourseRecording recording = new com.lms.course.entity.CourseRecording();
+        recording.setId(recordingId);
+        recording.setCourseId(courseId);
+        recording.setStorageProvider("CLOUDFLARE_R2");
         recording.setStorageKey(key);
+        recording.setFileName(request.getFileName());
+        recording.setFileSize(request.getFileSize());
+        recording.setMimeType(request.getMimeType());
+        recording.setStatus(com.lms.course.entity.RecordingStatus.PENDING);
+        recording.setCreatedBy(com.lms.security.authentication.AuthenticationService.requirePrincipal().getUserId());
+
         recording = recordingRepository.save(recording);
 
         // Update the lesson to link to this recording (it's pending right now)
@@ -283,6 +282,58 @@ public class CurriculumService {
 
         return com.lms.course.dto.response.GenerateUploadUrlResponse.builder()
                 .uploadUrl(uploadUrl)
+                .recordingId(recording.getId())
+                .build();
+    }
+
+    @Transactional
+    public com.lms.course.dto.response.GenerateUploadUrlResponse uploadRecordingDirectly(
+            UUID courseId, UUID moduleId, UUID lessonId,
+            org.springframework.web.multipart.MultipartFile file) {
+
+        getCourseAndCheckAccess(courseId);
+
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .filter(l -> l.getModule().getId().equals(moduleId) && l.getModule().getCourse().getId().equals(courseId))
+                .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Lesson not found"));
+
+        if (lesson.getLessonType() == com.lms.course.entity.LessonType.TEXT) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Uploads are only for media and file lessons");
+        }
+
+        String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+        String extension = "";
+        int extIndex = originalFilename.lastIndexOf('.');
+        if (extIndex > 0) {
+            extension = originalFilename.substring(extIndex);
+        }
+        UUID recordingId = UUID.randomUUID();
+        String key = String.format("courses/%s/lessons/%s/%s%s", courseId, lessonId, recordingId, extension);
+
+        com.lms.course.entity.CourseRecording recording = new com.lms.course.entity.CourseRecording();
+        recording.setId(recordingId);
+        recording.setCourseId(courseId);
+        recording.setStorageProvider("CLOUDFLARE_R2");
+        recording.setStorageKey(key);
+        recording.setFileName(originalFilename);
+        recording.setFileSize(file.getSize());
+        recording.setMimeType(file.getContentType());
+        recording.setStatus(com.lms.course.entity.RecordingStatus.READY);
+        recording.setCreatedBy(com.lms.security.authentication.AuthenticationService.requirePrincipal().getUserId());
+
+        recording = recordingRepository.save(recording);
+
+        lesson.setRecordingId(recording.getId());
+        lessonRepository.save(lesson);
+
+        try {
+            storageService.uploadFile(key, file.getInputStream(), file.getSize(), file.getContentType());
+        } catch (java.io.IOException e) {
+            throw new ApplicationException(ErrorCode.INTERNAL_ERROR, "Failed to read uploaded file: " + e.getMessage());
+        }
+
+        return com.lms.course.dto.response.GenerateUploadUrlResponse.builder()
+                .uploadUrl(storageService.getPublicUrl(key))
                 .recordingId(recording.getId())
                 .build();
     }

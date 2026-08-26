@@ -169,6 +169,11 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Get statistical analytics and individual student performance for an assessment")
     @GetMapping("/{id}/analytics")
+
+    @PreAuthorize("hasAuthority('ASSESSMENT_ANALYTICS_VIEW') or hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
+    }
     @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
     public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));

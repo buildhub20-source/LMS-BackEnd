@@ -136,7 +136,9 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
-        </dependency>        <!-- AWS S3 SDK for Cloudflare R2 -->
+        </dependency>
+
+        <!-- AWS S3 SDK for Cloudflare R2 -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>

@@ -90,10 +90,20 @@ public class CurriculumController {
         return ResponseEntity.ok(ApiResponse.of(curriculumService.generateUploadUrl(courseId, moduleId, lessonId, request)));
     }
 
+    @PostMapping(value = "/modules/{moduleId}/lessons/{lessonId}/recording/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<com.lms.course.dto.response.GenerateUploadUrlResponse>> uploadRecording(
+            @PathVariable UUID courseId,
+            @PathVariable UUID moduleId,
+            @PathVariable UUID lessonId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.of(curriculumService.uploadRecordingDirectly(courseId, moduleId, lessonId, file)));
+    }
+
     @org.springframework.web.bind.annotation.GetMapping("/analytics")
     @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('COURSE_ANALYTICS_VIEW') or hasAuthority('COURSE_VIEW')")
     public ResponseEntity<ApiResponse<com.lms.course.dto.response.CourseAnalyticsResponse>> getCourseAnalytics(
             @PathVariable UUID courseId) {
         return ResponseEntity.ok(ApiResponse.of(curriculumService.getCourseAnalytics(courseId)));
     }
+
 }

@@ -19,12 +19,10 @@ public record QuestionResponse(
         String constraints,
         Difficulty difficulty,
         QuestionType questionType,
-        String compiler,
         int marks,
         int timeLimitMs,
         int memoryLimitMb,
         int questionOrder,
-        UUID sectionId,
         Instant createdAt,
         Instant updatedAt,
         List<TestCaseResponse> testCases

@@ -14,7 +14,10 @@ public class AppProperties {
     private String frontendBaseUrl = "http://localhost:5173";
 
     public String passwordResetLink(String rawToken) {
-        return trimTrailingSlash(frontendBaseUrl) + "/reset-password?token=" + rawToken;
+        // The frontend serves this under the auth shell (ROUTES.RESET_PASSWORD),
+        // same as the invitation link below. Without the /auth prefix the emailed
+        // link resolves to no route and the reset silently dead-ends.
+        return trimTrailingSlash(frontendBaseUrl) + "/auth/reset-password?token=" + rawToken;
     }
 
     public String invitationLink(String rawToken) {

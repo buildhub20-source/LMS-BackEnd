@@ -137,7 +137,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void anInvitedUserSignsInWithTheTemporaryPasswordAndChoosesTheirOwn() throws Exception {
+    void anInvitedUserAcceptsTheLinkAndChoosesTheirOwnPassword() throws Exception {
         String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).at("/data/tokens/accessToken").asText();
 
         mockMvc.perform(post("/api/v1/invitations")
@@ -150,16 +150,15 @@ class AuthFlowIntegrationTest {
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.email").value(INVITEE_EMAIL));
 
-        // The account is live immediately, holding the temporary password.
+        // The account exists but holds no credentials until the link is accepted.
         assertThat(userRepository.findByEmailIgnoreCase(INVITEE_EMAIL))
                 .get()
                 .satisfies(user -> {
-                    assertThat(user.getPassword()).isNotNull();
-                    assertThat(user.isActive()).isTrue();
+                    assertThat(user.getPassword()).isNull();
+                    assertThat(user.isActive()).isFalse();
                 });
 
-        String temporaryPassword = temporaryPasswordFor(INVITEE_EMAIL);
-        completeOnboarding(temporaryPassword);
+        acceptInvitation(invitationTokenFor(INVITEE_EMAIL), INVITEE_PASSWORD);
 
         String accessToken = login(INVITEE_EMAIL, INVITEE_PASSWORD).at("/data/tokens/accessToken").asText();
 
@@ -170,9 +169,23 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void afterOnboardingLoginNoLongerDemandsAPasswordChange() throws Exception {
+    void anUnacceptedInviteeCannotSignInAtAll() throws Exception {
         inviteStudent();
-        completeOnboarding(temporaryPasswordFor(INVITEE_EMAIL));
+
+        // There is no credential to try: the row carries no password until the
+        // link is accepted, so there is no window where a half-onboarded
+        // account can authenticate.
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(credentials(INVITEE_EMAIL, INVITEE_PASSWORD)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    void afterAcceptingLoginNoLongerDemandsAPasswordChange() throws Exception {
+        inviteStudent();
+        acceptInvitation(invitationTokenFor(INVITEE_EMAIL), INVITEE_PASSWORD);
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -182,36 +195,59 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void theTemporaryPasswordStopsWorkingOnceItHasBeenReplaced() throws Exception {
+    void theInvitationTokenCannotBeUsedTwice() throws Exception {
         inviteStudent();
-        String temporaryPassword = temporaryPasswordFor(INVITEE_EMAIL);
+        String token = invitationTokenFor(INVITEE_EMAIL);
 
-        completeOnboarding(temporaryPassword);
+        acceptInvitation(token, INVITEE_PASSWORD);
 
-        mockMvc.perform(post("/api/v1/auth/login")
+        mockMvc.perform(post("/api/v1/auth/accept-invitation")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(credentials(INVITEE_EMAIL, temporaryPassword)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"));
+                        .content("""
+                                {"token":"%s","newPassword":"An0ther!secret"}
+                                """.formatted(token)))
+                .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
-    void thereIsNoPublicAcceptByLinkEndpoint() throws Exception {
-        // Removed deliberately; onboarding is temporary-password only. The path
-        // is no longer public, so it is rejected before any handler runs.
-        mockMvc.perform(post("/api/v1/invitations/accept")
+    void anUnknownInvitationTokenIsRejected() throws Exception {
+        inviteStudent();
+
+        mockMvc.perform(post("/api/v1/auth/accept-invitation")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"anything\",\"password\":\"Sup3r!secret\"}"))
+                        .content("""
+                                {"token":"not-a-real-token","newPassword":"%s"}
+                                """.formatted(INVITEE_PASSWORD)))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void theInvitationEmailCarriesTheTemporaryPasswordAndNoLink() throws Exception {
+    void theAdministratorNeverSeesTheInvitationToken() throws Exception {
+        String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).at("/data/tokens/accessToken").asText();
+
+        String body = mockMvc.perform(post("/api/v1/invitations")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Ada Lovelace","email":"%s","role":"STUDENT"}
+                                """.formatted(INVITEE_EMAIL)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        // Only the invitee's inbox carries the token; the API response must not,
+        // or an admin could take over the account before it is claimed.
+        assertThat(body).doesNotContain(invitationTokenFor(INVITEE_EMAIL));
+        assertThat(mailSender.sent()).singleElement()
+                .satisfies(message -> assertThat(message.getTo()).isEqualTo(INVITEE_EMAIL));
+    }
+
+    @Test
+    void theInvitationEmailCarriesTheAcceptLinkAndNoPassword() throws Exception {
         inviteStudent();
 
         assertThat(mailSender.lastTo(INVITEE_EMAIL).getBody())
-                .contains("Temporary password:")
-                .doesNotContain("token=");
+                .contains("/auth/accept-invitation?token=")
+                .doesNotContain("Temporary password:");
     }
 
     @Test
@@ -290,73 +326,6 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void theTemporaryPasswordSignsInButUnlocksNothingUntilItIsReplaced() throws Exception {
-        inviteStudent();
-        String temporaryPassword = temporaryPasswordFor(INVITEE_EMAIL);
-
-        String body = mockMvc.perform(post("/api/v1/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(credentials(INVITEE_EMAIL, temporaryPassword)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.mustChangePassword").value(true))
-                .andReturn().getResponse().getContentAsString();
-
-        String token = objectMapper.readTree(body).at("/data/tokens/accessToken").asText();
-
-        // A permission-guarded endpoint is refused, and so is one that needs
-        // nothing more than authentication - the filter closes that gap.
-        mockMvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
-
-        mockMvc.perform(get("/api/v1/auth/sessions").header("Authorization", "Bearer " + token))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
-
-        // Replacing the password is allowed, and completes onboarding.
-        mockMvc.perform(post("/api/v1/users/me/password")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"currentPassword":"%s","newPassword":"%s"}
-                                """.formatted(temporaryPassword, INVITEE_PASSWORD)))
-                .andExpect(status().isOk());
-
-        String chosen = login(INVITEE_EMAIL, INVITEE_PASSWORD).at("/data/tokens/accessToken").asText();
-
-        // The restriction is gone: this needs only authentication and now works.
-        mockMvc.perform(get("/api/v1/auth/sessions").header("Authorization", "Bearer " + chosen))
-                .andExpect(status().isOk());
-
-        // Still refused, but now by ordinary authorization rather than the
-        // onboarding filter - a STUDENT has no USER_VIEW. The change of error
-        // code is what proves the filter is no longer in the way.
-        mockMvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + chosen))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
-    }
-
-    @Test
-    void theAdministratorNeverSeesTheTemporaryPassword() throws Exception {
-        String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).at("/data/tokens/accessToken").asText();
-
-        String response = mockMvc.perform(post("/api/v1/invitations")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Ada Lovelace","email":"%s","role":"STUDENT"}
-                                """.formatted(INVITEE_EMAIL)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-
-        String temporaryPassword = temporaryPasswordFor(INVITEE_EMAIL);
-
-        assertThat(response).doesNotContain(temporaryPassword);
-        assertThat(mailSender.sent()).singleElement()
-                .satisfies(message -> assertThat(message.getTo()).isEqualTo(INVITEE_EMAIL));
-    }
-
-    @Test
     void aMalformedTokenDoesNotAuthenticate() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer not-a-jwt"))
                 .andExpect(status().isUnauthorized());
@@ -415,25 +384,22 @@ class AuthFlowIntegrationTest {
                 .andExpect(status().isCreated());
     }
 
-    /** Signs in with the temporary password and replaces it, as an invitee would. */
-    private void completeOnboarding(String temporaryPassword) throws Exception {
-        String token = login(INVITEE_EMAIL, temporaryPassword).at("/data/tokens/accessToken").asText();
-
-        mockMvc.perform(post("/api/v1/users/me/password")
-                        .header("Authorization", "Bearer " + token)
+    /** Claims the invitation with the emailed token, as an invitee would. */
+    private void acceptInvitation(String token, String newPassword) throws Exception {
+        mockMvc.perform(post("/api/v1/auth/accept-invitation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"currentPassword":"%s","newPassword":"%s"}
-                                """.formatted(temporaryPassword, INVITEE_PASSWORD)))
+                                {"token":"%s","newPassword":"%s"}
+                                """.formatted(token, newPassword)))
                 .andExpect(status().isOk());
     }
 
-    /** The temporary password exists only in the invitation email. */
-    private String temporaryPasswordFor(String email) {
+    /** The raw token exists only in the invitation email; the DB stores its hash. */
+    private String invitationTokenFor(String email) {
         String body = mailSender.lastTo(email).getBody();
         java.util.regex.Matcher matcher =
-                java.util.regex.Pattern.compile("Temporary password: (\\S+)").matcher(body);
-        assertThat(matcher.find()).as("temporary password in the invitation email").isTrue();
+                java.util.regex.Pattern.compile("accept-invitation\\?token=(\\S+)").matcher(body);
+        assertThat(matcher.find()).as("invitation token in the email").isTrue();
         return matcher.group(1);
     }
 

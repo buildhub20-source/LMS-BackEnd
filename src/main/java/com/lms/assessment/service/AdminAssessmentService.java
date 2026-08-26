@@ -2,6 +2,7 @@ package com.lms.assessment.service;
 
 import com.lms.assessment.dto.request.CreateAssessmentRequest;
 import com.lms.assessment.dto.request.UpdateAssessmentRequest;
+import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
 import com.lms.assessment.entity.AssessmentStatus;
@@ -63,5 +64,10 @@ public interface AdminAssessmentService {
      * Archived assessments are hidden from all listing UIs.
      */
     AssessmentResponse archive(UUID id);
+
+    /**
+     * Get aggregate and per-student analytics for an assessment.
+     */
+    AssessmentAnalyticsResponse getAnalytics(UUID id);
 }
 

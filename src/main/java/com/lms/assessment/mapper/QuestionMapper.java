@@ -8,6 +8,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface QuestionMapper {
@@ -24,6 +25,7 @@ public interface QuestionMapper {
     @Mapping(source = "question.constraints",   target = "constraints")
     @Mapping(source = "question.difficulty",    target = "difficulty")
     @Mapping(source = "question.questionType",  target = "questionType")
+    @Mapping(source = "question.compiler",      target = "compiler")
     @Mapping(source = "marks",                  target = "marks")
     @Mapping(source = "question.timeLimitMs",   target = "timeLimitMs")
     @Mapping(source = "question.memoryLimitMb", target = "memoryLimitMb")
@@ -31,5 +33,5 @@ public interface QuestionMapper {
     @Mapping(source = "question.createdAt",     target = "createdAt")
     @Mapping(source = "question.updatedAt",     target = "updatedAt")
     @Mapping(source = "testCases",              target = "testCases")
-    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases);
+    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, UUID sectionId, List<TestCaseResponse> testCases);
 }

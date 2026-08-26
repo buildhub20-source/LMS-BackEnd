@@ -2,6 +2,7 @@ package com.lms.assessment.controller;
 
 import com.lms.assessment.dto.request.CreateAssessmentRequest;
 import com.lms.assessment.dto.request.UpdateAssessmentRequest;
+import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
 import com.lms.assessment.entity.AssessmentStatus;
@@ -161,8 +162,6 @@ public class AdminAssessmentController {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));
     }
-<<<<<<< Updated upstream
-=======
 
     // ---------------------------------------------------------------
     // GET /api/v1/admin/assessments/{id}/analytics
@@ -170,9 +169,13 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Get statistical analytics and individual student performance for an assessment")
     @GetMapping("/{id}/analytics")
+
     @PreAuthorize("hasAuthority('ASSESSMENT_ANALYTICS_VIEW') or hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
     }
->>>>>>> Stashed changes
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
+    }
 }

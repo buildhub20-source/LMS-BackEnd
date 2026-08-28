@@ -12,7 +12,6 @@ public class LessonResponse {
     private UUID recordingId;
     private Integer durationMinutes;
     private boolean freePreview;
-    private String thumbnailUrl;
     private int sortOrder;
 
     public LessonResponse() {}
@@ -31,8 +30,6 @@ public class LessonResponse {
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
     public boolean isFreePreview() { return freePreview; }
     public void setFreePreview(boolean freePreview) { this.freePreview = freePreview; }
-    public String getThumbnailUrl() { return thumbnailUrl; }
-    public void setThumbnailUrl(String thumbnailUrl) { this.thumbnailUrl = thumbnailUrl; }
     public int getSortOrder() { return sortOrder; }
     public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
 }

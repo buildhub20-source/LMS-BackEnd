@@ -14,4 +14,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
     Optional<Submission> findByAttemptIdAndQuestionId(UUID attemptId, UUID questionId);
 
     List<Submission> findByStudentIdOrderBySubmittedAtDesc(UUID studentId);
+
+    /** Guards account deletion: submissions hold a RESTRICT key to users. */
+    long countByStudentId(UUID studentId);
 }

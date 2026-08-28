@@ -2,26 +2,17 @@ package com.lms.assessment.service;
 
 import com.lms.assessment.dto.request.CreateAssessmentRequest;
 import com.lms.assessment.dto.request.UpdateAssessmentRequest;
-import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
-import com.lms.assessment.dto.response.ScoreDistributionBucketDto;
-import com.lms.assessment.dto.response.StudentAssessmentStatDto;
 import com.lms.assessment.entity.Assessment;
-import com.lms.assessment.entity.AssessmentAttempt;
 import com.lms.assessment.entity.AssessmentStatus;
-import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.mapper.AssessmentMapper;
-import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
 import com.lms.assessment.repository.TestCaseRepository;
-import com.lms.role.constants.SystemRoles;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.PageResponse;
-import com.lms.user.entity.User;
-import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -30,11 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -47,8 +35,6 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     private final AssessmentRepository assessmentRepository;
     private final AssessmentQuestionRepository assessmentQuestionRepository;
     private final TestCaseRepository testCaseRepository;
-    private final AssessmentAttemptRepository assessmentAttemptRepository;
-    private final UserRepository userRepository;
     private final AssessmentMapper assessmentMapper;
 
     // ---------------------------------------------------------------
@@ -278,106 +264,6 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                     "Cannot " + action + " assessment: status is " + assessment.getStatus()
                     + ". Only DRAFT assessments may be " + action + "d.");
         }
-    }
-
-    @Override
-    public AssessmentAnalyticsResponse getAnalytics(UUID id) {
-        Assessment assessment = requireAssessment(id);
-        List<User> students = userRepository.findUsersByRoleName(SystemRoles.STUDENT);
-        List<AssessmentAttempt> attempts = assessmentAttemptRepository.findByAssessmentIdOrderByStartedAtDesc(id);
-
-        Map<UUID, List<AssessmentAttempt>> attemptsByStudent = attempts.stream()
-                .collect(Collectors.groupingBy(AssessmentAttempt::getStudentId));
-
-        long totalEnrolled = students.size();
-        long attendedCount = attemptsByStudent.size();
-        long nonAttendedCount = Math.max(0, totalEnrolled - attendedCount);
-
-        long completedCount = 0;
-        long inProgressCount = 0;
-        double sumScores = 0;
-        int scoredStudentsCount = 0;
-
-        List<StudentAssessmentStatDto> studentStats = new ArrayList<>();
-
-        long bucket0to25 = 0;
-        long bucket26to50 = 0;
-        long bucket51to75 = 0;
-        long bucket76to100 = 0;
-
-        for (User student : students) {
-            List<AssessmentAttempt> studentAttempts = attemptsByStudent.getOrDefault(student.getId(), List.of());
-            if (studentAttempts.isEmpty()) {
-                studentStats.add(new StudentAssessmentStatDto(
-                        student.getId(),
-                        student.getName(),
-                        student.getEmail(),
-                        "NOT_ATTENDED",
-                        0,
-                        assessment.getTotalMarks(),
-                        0.0,
-                        0,
-                        null
-                ));
-            } else {
-                AssessmentAttempt latest = studentAttempts.get(0);
-                String status = latest.getStatus().name();
-                Integer score = latest.getScore() != null ? latest.getScore() : 0;
-                int totalMarks = assessment.getTotalMarks();
-                double completionPct = totalMarks > 0 ? ((double) score / totalMarks) * 100.0 : 0.0;
-
-                if (latest.getStatus() == AttemptStatus.SUBMITTED || latest.getStatus() == AttemptStatus.EXPIRED) {
-                    completedCount++;
-                    sumScores += score;
-                    scoredStudentsCount++;
-
-                    if (completionPct <= 25.0) bucket0to25++;
-                    else if (completionPct <= 50.0) bucket26to50++;
-                    else if (completionPct <= 75.0) bucket51to75++;
-                    else bucket76to100++;
-                } else if (latest.getStatus() == AttemptStatus.IN_PROGRESS) {
-                    inProgressCount++;
-                }
-
-                studentStats.add(new StudentAssessmentStatDto(
-                        student.getId(),
-                        student.getName(),
-                        student.getEmail(),
-                        status,
-                        score,
-                        totalMarks,
-                        Math.round(completionPct * 10.0) / 10.0,
-                        studentAttempts.size(),
-                        latest.getSubmittedAt() != null ? latest.getSubmittedAt() : latest.getStartedAt()
-                ));
-            }
-        }
-
-        double avgScore = scoredStudentsCount > 0 ? sumScores / scoredStudentsCount : 0.0;
-        double avgCompletionPct = (assessment.getTotalMarks() > 0 && scoredStudentsCount > 0)
-                ? (avgScore / assessment.getTotalMarks()) * 100.0 : 0.0;
-
-        List<ScoreDistributionBucketDto> scoreDistribution = List.of(
-                new ScoreDistributionBucketDto("0-25%", bucket0to25),
-                new ScoreDistributionBucketDto("26-50%", bucket26to50),
-                new ScoreDistributionBucketDto("51-75%", bucket51to75),
-                new ScoreDistributionBucketDto("76-100%", bucket76to100)
-        );
-
-        return new AssessmentAnalyticsResponse(
-                assessment.getId(),
-                assessment.getTitle(),
-                assessment.getTotalMarks(),
-                totalEnrolled,
-                attendedCount,
-                nonAttendedCount,
-                completedCount,
-                inProgressCount,
-                Math.round(avgScore * 10.0) / 10.0,
-                Math.round(avgCompletionPct * 10.0) / 10.0,
-                studentStats,
-                scoreDistribution
-        );
     }
 
     private AssessmentResponse toResponse(Assessment assessment) {

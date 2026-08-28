@@ -1,6 +1,10 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:lms;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    # INIT creates the `lms` schema up front so the suite mirrors the real
+    # topology. Pinning the tests to `public` instead used to hide a whole class
+    # of bug: every migration from V7 onward is schema-qualified (`lms.courses`)
+    # and could not run here at all.
+    url: jdbc:h2:mem:lms;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS lms
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
@@ -9,12 +13,11 @@ spring:
       ddl-auto: create-drop
     properties:
       hibernate:
-        # H2 has no `lms` schema; the suite never touches the cloud database.
-        default_schema: public
+        default_schema: lms
   flyway:
     enabled: false
-    schemas: public
-    default-schema: public
+    schemas: lms
+    default-schema: lms
 
 lms:
   security:

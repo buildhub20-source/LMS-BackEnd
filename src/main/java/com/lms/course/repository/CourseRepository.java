@@ -16,4 +16,9 @@ import java.util.UUID;
 public interface CourseRepository extends JpaRepository<Course, UUID>, JpaSpecificationExecutor<Course> {
 
     long countByStatus(CourseStatus status);
+
+    /** Guards account deletion: courses hold NO ACTION keys to users. */
+    long countByCreatedBy(UUID createdBy);
+
+    long countByInstructorId(UUID instructorId);
 }

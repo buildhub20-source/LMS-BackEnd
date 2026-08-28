@@ -15,8 +15,6 @@ public class UpdateCourseRequest {
 
     private Integer durationMinutes;
 
-    private java.util.UUID instructorId;
-
     public UpdateCourseRequest() {
     }
 
@@ -31,7 +29,4 @@ public class UpdateCourseRequest {
 
     public Integer getDurationMinutes() { return durationMinutes; }
     public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
-
-    public java.util.UUID getInstructorId() { return instructorId; }
-    public void setInstructorId(java.util.UUID instructorId) { this.instructorId = instructorId; }
 }

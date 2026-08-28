@@ -96,14 +96,42 @@ the only path that produces an activated account.
 | `GET /invitations`, `GET /invitations/{id}` | `INVITATION_VIEW` |
 | `POST /invitations/{id}/resend`, `DELETE /invitations/{id}` | `INVITATION_MANAGE` |
 
-Onboarding has no public endpoint: the invitee signs in with the temporary
-password from their invitation email and is forced to replace it via
-`POST /users/me/password`.
+Onboarding runs through one public endpoint: the invitee opens the link from
+their invitation email and `POST /auth/accept-invitation {token, newPassword}`
+sets the password, activates the account and signs them in.
 | `POST /courses` | `COURSE_CREATE` |
 | `GET /courses`, `GET /courses/{id}`, `GET /courses/instructor/{id}` | `COURSE_VIEW` |
 | `PATCH /courses/{id}`, `POST /courses/{id}/archive` | `COURSE_UPDATE` |
 | `POST /courses/{id}/publish` | `COURSE_PUBLISH` |
 | `DELETE /courses/{id}` | `COURSE_DELETE` |
+| `GET /students`, `GET /students/{id}`, `GET /students/reference-data` | `STUDENT_VIEW` |
+| `POST /students` | `STUDENT_CREATE` |
+| `PATCH /students/{id}` | `STUDENT_UPDATE` |
+| `DELETE /students/{id}` | `STUDENT_DELETE` |
+| `POST /students/photo/upload-url` | `STUDENT_CREATE` or `STUDENT_UPDATE` |
+
+### Students
+
+`POST /students` admits a student: it creates the school record *and* the
+account behind it, delegating account creation to the invitation flow so the
+credential path stays in one place. It is the only way a STUDENT account is
+created with its enrolment attached.
+
+Personal detail lives in `student_profiles` and `student_guardians` rather than
+on `users`, which stays the identity record. The split is deliberate: `user_role`
+is many-to-many, so one person can be both a student and an instructor, and
+role-specific columns on `users` could not represent that.
+
+`GET /students/reference-data` returns the academic years, classes, sections,
+categories and genders the intake form's dropdowns need, in a single call.
+Sections are returned with their `classId` so the form can filter them when a
+class is picked — section names repeat across classes, and the API rejects a
+section that does not belong to the chosen class.
+
+Photos are uploaded directly to object storage: `POST /students/photo/upload-url`
+returns a pre-signed URL plus the `photoKey` to submit with the student payload.
+The image never passes through the API.
+
 
 ## Paging and sorting
 

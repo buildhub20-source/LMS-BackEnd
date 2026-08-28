@@ -64,13 +64,8 @@ public class AssessmentQuestion {
     @Column(name = "marks", nullable = false)
     private int marks = 10;
 
-    /**
-     * Optional section grouping. When null the question is "unsectioned"
-     * and will appear outside any section in the UI.
-     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "section_id",
-                foreignKey = @ForeignKey(name = "fk_assessment_questions_section"))
+    @JoinColumn(name = "section_id", foreignKey = @ForeignKey(name = "fk_assessment_questions_section"))
     private Section section;
 
     @Override

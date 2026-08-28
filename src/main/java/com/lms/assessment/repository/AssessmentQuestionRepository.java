@@ -12,6 +12,8 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
 
     List<AssessmentQuestion> findByAssessmentIdOrderByQuestionOrderAsc(UUID assessmentId);
 
+    List<AssessmentQuestion> findBySectionIdOrderByQuestionOrderAsc(UUID sectionId);
+
     long countByAssessmentId(UUID assessmentId);
 
     boolean existsByAssessmentIdAndQuestionId(UUID assessmentId, UUID questionId);
@@ -20,12 +22,6 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
 
     /** All junction rows that reference a specific question (across all assessments). */
     List<AssessmentQuestion> findByQuestionId(UUID questionId);
-
-    /** All junction rows that belong to a specific section, ordered. */
-    List<AssessmentQuestion> findBySectionIdOrderByQuestionOrderAsc(UUID sectionId);
-
-    /** All unsectioned junction rows for a given assessment. */
-    List<AssessmentQuestion> findByAssessmentIdAndSectionIsNullOrderByQuestionOrderAsc(UUID assessmentId);
 
     /**
      * Returns the IDs of all questions in an assessment that have at least one

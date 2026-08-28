@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 public class CourseController {
 
     private final CourseService courseService;
-    private final com.lms.course.service.CurriculumService curriculumService;
     private final CourseRecordingRepository recordingRepository;
     private final UserRepository userRepository;
 
@@ -70,13 +69,6 @@ public class CourseController {
     @PreAuthorize("hasAuthority('COURSE_VIEW')")
     public ResponseEntity<ApiResponse<CourseResponse>> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(courseService.findById(id)));
-    }
-
-    @Operation(summary = "Get course statistical analytics")
-    @GetMapping("/{id}/analytics")
-    @PreAuthorize("hasAuthority('COURSE_ANALYTICS_VIEW') or hasAuthority('COURSE_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
-    public ResponseEntity<ApiResponse<com.lms.course.dto.response.CourseAnalyticsResponse>> getCourseAnalytics(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.of(curriculumService.getCourseAnalytics(id)));
     }
 
     @Operation(summary = "Create a new course")

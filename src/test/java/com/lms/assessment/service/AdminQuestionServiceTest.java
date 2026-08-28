@@ -92,7 +92,7 @@ class AdminQuestionServiceTest {
             CreateTestCaseRequest tc = new CreateTestCaseRequest("1 2", "3", true, false, 1);
             CreateQuestionRequest request = new CreateQuestionRequest(
                     "Two Sum", "Find indices", "int[]", "int[]", "N<=1000",
-                    Difficulty.EASY, QuestionType.CODING, "JAVA", 20, 2000, 256, List.of(tc));
+                    Difficulty.EASY, QuestionType.CODING, 20, 2000, 256, List.of(tc));
 
             when(assessmentQuestionRepository.findByAssessmentIdOrderByQuestionOrderAsc(assessmentId))
                     .thenReturn(List.of(AssessmentQuestion.builder().assessment(assessment).question(q).marks(20).build()));
@@ -112,12 +112,10 @@ class AdminQuestionServiceTest {
             when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
 
             CreateQuestionRequest request = new CreateQuestionRequest(
-                "New Q", "Desc", "In", "Out", "Constraints",
-                Difficulty.EASY, QuestionType.CODING,
-                "JAVA",
-                10, 1000, 256,
-                List.of(new CreateTestCaseRequest("1", "1", true, false, 10))
-        ); assertThatThrownBy(() -> service.addQuestion(assessmentId, request))
+                    "Two Sum", "Find indices", null, null, null,
+                    Difficulty.EASY, QuestionType.CODING, 20, 2000, 256, List.of());
+
+            assertThatThrownBy(() -> service.addQuestion(assessmentId, request))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("PUBLISHED");
         }

@@ -15,6 +15,9 @@ public interface AssessmentAttemptRepository extends JpaRepository<AssessmentAtt
 
     long countByAssessmentIdAndStudentId(UUID assessmentId, UUID studentId);
 
+    /** Guards account deletion: attempts hold a RESTRICT key to users. */
+    long countByStudentId(UUID studentId);
+
     Optional<AssessmentAttempt> findByIdAndStudentId(UUID id, UUID studentId);
 
     List<AssessmentAttempt> findByAssessmentIdOrderByStartedAtDesc(UUID assessmentId);

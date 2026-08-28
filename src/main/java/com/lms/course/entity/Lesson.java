@@ -56,9 +56,6 @@ public class Lesson extends Timestamped {
     @Column(name = "is_free_preview", nullable = false)
     private boolean freePreview;
 
-    @Column(name = "thumbnail_url", length = 1024)
-    private String thumbnailUrl;
-
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 }

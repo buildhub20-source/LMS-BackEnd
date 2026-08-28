@@ -9,11 +9,8 @@ import java.util.UUID;
 
 public interface AdminQuestionService {
 
-    /** Add a new question to an assessment (unsectioned). */
+    /** Add a new question to an assessment. */
     QuestionResponse addQuestion(UUID assessmentId, CreateQuestionRequest request);
-
-    /** Add a new question to a specific section within an assessment. */
-    QuestionResponse addQuestion(UUID assessmentId, UUID sectionId, CreateQuestionRequest request);
 
     /** Get all questions for an assessment in order. */
     List<QuestionResponse> getQuestionsByAssessmentId(UUID assessmentId);

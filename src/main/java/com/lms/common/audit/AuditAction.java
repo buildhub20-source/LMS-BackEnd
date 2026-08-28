@@ -31,5 +31,15 @@ public enum AuditAction {
     COURSE_PUBLISHED,
     COURSE_UNPUBLISHED,
     COURSE_ARCHIVED,
-    COURSE_DELETED
+    COURSE_DELETED,
+
+    // Student records
+    STUDENT_CREATED,
+    STUDENT_UPDATED,
+    STUDENT_DELETED,
+
+    // Instructor records
+    INSTRUCTOR_CREATED,
+    INSTRUCTOR_UPDATED,
+    INSTRUCTOR_DELETED
 }

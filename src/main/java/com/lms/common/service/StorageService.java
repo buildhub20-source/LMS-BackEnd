@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
@@ -35,18 +36,47 @@ public class StorageService {
      */
     public void uploadFile(String key, InputStream inputStream, long contentLength, String contentType) {
         if (s3Client == null) {
-            throw new IllegalStateException("Cloudflare R2 storage is not configured");
+            throw new com.lms.common.exception.ApplicationException(
+                    com.lms.common.exception.ErrorCode.INTERNAL_ERROR,
+                    "Cloudflare R2 storage is not configured");
         }
 
-        PutObjectRequest objectRequest = PutObjectRequest.builder()
-                .bucket(r2.getBucket())
-                .key(key)
-                .contentType(contentType)
-                .contentLength(contentLength)
-                .build();
+        try {
+            PutObjectRequest objectRequest = PutObjectRequest.builder()
+                    .bucket(r2.getBucket())
+                    .key(key)
+                    .contentType(contentType)
+                    .contentLength(contentLength)
+                    .build();
 
-        s3Client.putObject(objectRequest, RequestBody.fromInputStream(inputStream, contentLength));
-        log.info("Successfully uploaded object to R2 bucket {}: {}", r2.getBucket(), key);
+            s3Client.putObject(objectRequest, RequestBody.fromInputStream(inputStream, contentLength));
+            log.info("Successfully uploaded object to R2 bucket {}: {}", r2.getBucket(), key);
+        } catch (Exception e) {
+            log.error("Cloudflare R2 upload error for bucket {} key {}: {}", r2.getBucket(), key, e.getMessage(), e);
+            throw new com.lms.common.exception.ApplicationException(
+                    com.lms.common.exception.ErrorCode.INTERNAL_ERROR,
+                    "Cloudflare R2 Storage Upload Failed: " + e.getMessage());
+        }
+    }
+
+    /** Returns whether an uploaded object is available in the configured R2 bucket. */
+    public boolean objectExists(String key) {
+        if (s3Client == null) {
+            log.warn("S3Client is not configured. Cannot verify R2 object {}.", key);
+            return false;
+        }
+
+        try {
+            s3Client.headObject(HeadObjectRequest.builder()
+                    .bucket(r2.getBucket())
+                    .key(key)
+                    .build());
+            return true;
+        } catch (Exception e) {
+            log.warn("R2 object is not available for bucket {} key {}: {}",
+                    r2.getBucket(), key, e.getMessage());
+            return false;
+        }
     }
 
 
@@ -58,12 +88,17 @@ public class StorageService {
             log.warn("S3Client is not configured. Cannot stream object from R2.");
             return null;
         }
-        software.amazon.awssdk.services.s3.model.GetObjectRequest getObjectRequest = 
-                software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
-                .bucket(r2.getBucket())
-                .key(key)
-                .build();
-        return s3Client.getObject(getObjectRequest);
+        try {
+            software.amazon.awssdk.services.s3.model.GetObjectRequest getObjectRequest =
+                    software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                    .bucket(r2.getBucket())
+                    .key(key)
+                    .build();
+            return s3Client.getObject(getObjectRequest);
+        } catch (Exception e) {
+            log.error("Failed to retrieve stream from R2 for key {}: {}", key, e.getMessage(), e);
+            return null;
+        }
     }
 
     /**
@@ -73,44 +108,54 @@ public class StorageService {
         if (s3Presigner == null) {
             return null;
         }
-        software.amazon.awssdk.services.s3.model.GetObjectRequest objectRequest = 
-                software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
-                .bucket(r2.getBucket())
-                .key(key)
-                .build();
-        software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest = 
-                software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofHours(2))
-                .getObjectRequest(objectRequest)
-                .build();
-        return s3Presigner.presignGetObject(presignRequest).url().toString();
+        try {
+            software.amazon.awssdk.services.s3.model.GetObjectRequest objectRequest =
+                    software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                    .bucket(r2.getBucket())
+                    .key(key)
+                    .build();
+            software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest =
+                    software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofHours(2))
+                    .getObjectRequest(objectRequest)
+                    .build();
+            return s3Presigner.presignGetObject(presignRequest).url().toString();
+        } catch (Exception e) {
+            log.error("Failed to generate presigned GET URL for key {}: {}", key, e.getMessage());
+            return null;
+        }
     }
 
     /**
      * Generates a pre-signed PUT URL for uploading a file directly to R2.
      * @param key The object key (e.g. "courses/{courseId}/lessons/{lessonId}/{uuid}.mp4")
      * @param contentType The MIME type of the file
-     * @return The pre-signed URL string
+     * @return The pre-signed URL string, or null if unconfigured
      */
     public String generatePresignedUploadUrl(String key, String contentType) {
         if (s3Presigner == null) {
-            log.warn("S3 presigner is not configured. No upload URL can be generated.");
+            log.warn("S3 presigner is not configured. Skipping presigned URL generation.");
             return null;
         }
 
-        PutObjectRequest objectRequest = PutObjectRequest.builder()
-                .bucket(r2.getBucket())
-                .key(key)
-                .contentType(contentType)
-                .build();
+        try {
+            PutObjectRequest objectRequest = PutObjectRequest.builder()
+                    .bucket(r2.getBucket())
+                    .key(key)
+                    .contentType(contentType)
+                    .build();
 
-        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(60))
-                .putObjectRequest(objectRequest)
-                .build();
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(60))
+                    .putObjectRequest(objectRequest)
+                    .build();
 
-        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
-        return presignedRequest.url().toString();
+            PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+            return presignedRequest.url().toString();
+        } catch (Exception e) {
+            log.error("Failed to generate presigned upload URL for key {}: {}", key, e.getMessage());
+            return null;
+        }
     }
 
     /**

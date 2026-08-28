@@ -2,8 +2,11 @@ package com.lms.course.controller;
 
 import com.lms.common.exception.ApplicationException;
 import com.lms.common.exception.ErrorCode;
+import com.lms.common.response.ApiResponse;
 import com.lms.common.service.StorageService;
+import com.lms.course.dto.response.RecordingPlaybackUrlResponse;
 import com.lms.course.entity.CourseRecording;
+import com.lms.course.entity.RecordingStatus;
 import com.lms.course.repository.CourseRecordingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
@@ -29,10 +32,33 @@ public class RecordingStreamController {
     private final CourseRecordingRepository recordingRepository;
     private final StorageService storageService;
 
+    @GetMapping("/{recordingId}/playback-url")
+    public ResponseEntity<ApiResponse<RecordingPlaybackUrlResponse>> getPlaybackUrl(
+            @PathVariable UUID recordingId) {
+        CourseRecording recording = recordingRepository.findById(recordingId)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Recording not found"));
+
+        if (recording.getStatus() != RecordingStatus.READY) {
+            throw new ApplicationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Recording is not ready for playback");
+        }
+
+        String playbackUrl = storageService.generatePresignedGetUrl(recording.getStorageKey());
+        if (playbackUrl == null) {
+            throw new ApplicationException(ErrorCode.INTERNAL_ERROR,
+                    "Unable to generate a playback URL for this recording");
+        }
+
+        return ResponseEntity.ok(ApiResponse.of(new RecordingPlaybackUrlResponse(playbackUrl)));
+    }
+
     @GetMapping("/{recordingId}/stream")
     public ResponseEntity<InputStreamResource> streamRecording(@PathVariable UUID recordingId) {
         CourseRecording recording = recordingRepository.findById(recordingId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Recording not found"));
+
+        if (recording.getStatus() != RecordingStatus.READY) {
+            throw new ApplicationException(ErrorCode.BUSINESS_RULE_VIOLATION, "Recording is not ready for playback");
+        }
 
         var s3Stream = storageService.getObjectStream(recording.getStorageKey());
         if (s3Stream == null) {

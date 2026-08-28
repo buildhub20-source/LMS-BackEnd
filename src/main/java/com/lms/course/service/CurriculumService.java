@@ -89,6 +89,7 @@ public class CurriculumService {
         lesson.setRecordingId(request.getRecordingId());
         lesson.setDurationMinutes(request.getDurationMinutes());
         lesson.setFreePreview(request.isFreePreview());
+        lesson.setThumbnailUrl(request.getThumbnailUrl());
         lesson.setSortOrder(request.getSortOrder());
 
         module.addLesson(lesson);
@@ -111,10 +112,57 @@ public class CurriculumService {
         lesson.setRecordingId(request.getRecordingId());
         lesson.setDurationMinutes(request.getDurationMinutes());
         lesson.setFreePreview(request.isFreePreview());
+        lesson.setThumbnailUrl(request.getThumbnailUrl());
         lesson.setSortOrder(request.getSortOrder());
 
         lesson = lessonRepository.save(lesson);
         return courseMapper.toLessonResponse(lesson);
+    }
+
+    @Transactional
+    public LessonResponse uploadLessonThumbnail(
+            UUID courseId, UUID moduleId, UUID lessonId,
+            org.springframework.web.multipart.MultipartFile file) {
+        getCourseAndCheckAccess(courseId);
+
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .filter(l -> l.getModule().getId().equals(moduleId)
+                        && l.getModule().getCourse().getId().equals(courseId))
+                .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Lesson not found"));
+
+        if (file == null || file.isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "A thumbnail image is required");
+        }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Thumbnail image must not exceed 10 MB");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Thumbnail must be an image file");
+        }
+
+        String originalFilename = file.getOriginalFilename() == null ? "thumbnail" : file.getOriginalFilename();
+        String extension = "";
+        int extensionIndex = originalFilename.lastIndexOf('.');
+        if (extensionIndex > 0) {
+            extension = originalFilename.substring(extensionIndex);
+        }
+
+        String key = String.format("courses/%s/lessons/%s/thumbnails/%s%s", courseId, lessonId, UUID.randomUUID(), extension);
+        String thumbnailUrl = storageService.getPublicUrl(key);
+        if (thumbnailUrl == null || thumbnailUrl.isBlank()) {
+            throw new ApplicationException(ErrorCode.INTERNAL_ERROR, "Thumbnail storage is not configured");
+        }
+
+        try {
+            storageService.uploadFile(key, file.getInputStream(), file.getSize(), contentType);
+        } catch (java.io.IOException e) {
+            throw new ApplicationException(ErrorCode.INTERNAL_ERROR, "Failed to read thumbnail upload: " + e.getMessage());
+        }
+
+        lesson.setThumbnailUrl(thumbnailUrl);
+        return courseMapper.toLessonResponse(lessonRepository.save(lesson));
     }
 
     @Transactional

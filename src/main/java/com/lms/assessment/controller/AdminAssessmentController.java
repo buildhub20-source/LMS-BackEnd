@@ -174,8 +174,4 @@ public class AdminAssessmentController {
     public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
     }
-    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
-    public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
-    }
 }

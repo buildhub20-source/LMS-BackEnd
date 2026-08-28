@@ -21,4 +21,6 @@ public interface AssessmentAttemptRepository extends JpaRepository<AssessmentAtt
 
     List<AssessmentAttempt> findByStudentIdAndStatusOrderByStartedAtDesc(
             UUID studentId, AttemptStatus status);
+
+    long countByStudentId(UUID studentId);
 }

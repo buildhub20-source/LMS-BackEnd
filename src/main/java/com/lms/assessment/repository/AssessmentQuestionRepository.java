@@ -12,6 +12,8 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
 
     List<AssessmentQuestion> findByAssessmentIdOrderByQuestionOrderAsc(UUID assessmentId);
 
+    List<AssessmentQuestion> findBySectionIdOrderByQuestionOrderAsc(UUID sectionId);
+
     long countByAssessmentId(UUID assessmentId);
 
     boolean existsByAssessmentIdAndQuestionId(UUID assessmentId, UUID questionId);

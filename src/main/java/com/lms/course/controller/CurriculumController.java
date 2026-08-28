@@ -71,6 +71,15 @@ public class CurriculumController {
         return ResponseEntity.ok(ApiResponse.of(curriculumService.updateLesson(courseId, moduleId, lessonId, request)));
     }
 
+    @PostMapping(value = "/modules/{moduleId}/lessons/{lessonId}/thumbnail", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<LessonResponse>> uploadLessonThumbnail(
+            @PathVariable UUID courseId,
+            @PathVariable UUID moduleId,
+            @PathVariable UUID lessonId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.of(curriculumService.uploadLessonThumbnail(courseId, moduleId, lessonId, file)));
+    }
+
     @DeleteMapping("/modules/{moduleId}/lessons/{lessonId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ResponseEntity<Void> deleteLesson(

@@ -35,8 +35,7 @@ public class StorageService {
      */
     public void uploadFile(String key, InputStream inputStream, long contentLength, String contentType) {
         if (s3Client == null) {
-            log.warn("S3Client is not configured. Skipping actual R2 upload.");
-            return;
+            throw new IllegalStateException("Cloudflare R2 storage is not configured");
         }
 
         PutObjectRequest objectRequest = PutObjectRequest.builder()
@@ -95,8 +94,8 @@ public class StorageService {
      */
     public String generatePresignedUploadUrl(String key, String contentType) {
         if (s3Presigner == null) {
-            log.warn("S3 presigner is not configured. Returning fallback URL.");
-            return "http://localhost:8080/fallback-upload/" + key; // Just a fallback for missing config
+            log.warn("S3 presigner is not configured. No upload URL can be generated.");
+            return null;
         }
 
         PutObjectRequest objectRequest = PutObjectRequest.builder()

@@ -153,8 +153,8 @@ public class CurriculumService {
                 .filter(l -> l.getModule().getId().equals(moduleId) && l.getModule().getCourse().getId().equals(courseId))
                 .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Lesson not found"));
 
-        if (lesson.getLessonType() != com.lms.course.entity.LessonType.VIDEO) {
-            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Upload URLs are only for VIDEO lessons");
+        if (lesson.getLessonType() == com.lms.course.entity.LessonType.TEXT || lesson.getLessonType() == com.lms.course.entity.LessonType.QUIZ) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Upload URLs are only for media and file lessons");
         }
 
         // Create a pending course recording

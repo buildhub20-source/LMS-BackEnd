@@ -64,6 +64,10 @@ public class AssessmentQuestion {
     @Column(name = "marks", nullable = false)
     private int marks = 10;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "section_id", foreignKey = @ForeignKey(name = "fk_assessment_questions_section"))
+    private Section section;
+
     @Override
     public boolean equals(Object other) {
         if (this == other) return true;

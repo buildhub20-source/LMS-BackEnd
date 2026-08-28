@@ -24,12 +24,18 @@ public interface QuestionMapper {
     @Mapping(source = "question.constraints",   target = "constraints")
     @Mapping(source = "question.difficulty",    target = "difficulty")
     @Mapping(source = "question.questionType",  target = "questionType")
+    @Mapping(source = "question.compiler",      target = "compiler")
     @Mapping(source = "marks",                  target = "marks")
     @Mapping(source = "question.timeLimitMs",   target = "timeLimitMs")
     @Mapping(source = "question.memoryLimitMb", target = "memoryLimitMb")
     @Mapping(source = "questionOrder",          target = "questionOrder")
+    @Mapping(source = "sectionId",              target = "sectionId")
     @Mapping(source = "question.createdAt",     target = "createdAt")
     @Mapping(source = "question.updatedAt",     target = "updatedAt")
     @Mapping(source = "testCases",              target = "testCases")
-    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases);
+    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, java.util.UUID sectionId, List<TestCaseResponse> testCases);
+
+    default QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases) {
+        return toQuestionResponse(question, questionOrder, marks, (java.util.UUID) null, testCases);
+    }
 }

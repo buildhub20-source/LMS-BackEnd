@@ -1,5 +1,6 @@
 # Build output
 target/
+/.maven-home/
 !.mvn/wrapper/maven-wrapper.jar
 build/
 out/

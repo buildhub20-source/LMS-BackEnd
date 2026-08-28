@@ -83,6 +83,13 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.RESOURCE_NOT_FOUND, "No endpoint " + request.getRequestURI(), request);
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex,
+                                                                 HttpServletRequest request) {
+        log.warn("Max upload size exceeded on {}", request.getRequestURI());
+        return build(ErrorCode.VALIDATION_FAILED, "File size exceeds the maximum allowed upload limit (500MB).", request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {}", request.getRequestURI(), ex);

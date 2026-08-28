@@ -16,4 +16,8 @@ import java.util.UUID;
 public interface CourseRepository extends JpaRepository<Course, UUID>, JpaSpecificationExecutor<Course> {
 
     long countByStatus(CourseStatus status);
+
+    long countByCreatedBy(UUID createdBy);
+
+    long countByInstructorId(UUID instructorId);
 }

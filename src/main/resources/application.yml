@@ -8,6 +8,11 @@ spring:
     name: lms-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+      enabled: true
   jackson:
     default-property-inclusion: non_null
     serialization:

@@ -13,7 +13,7 @@ import org.mapstruct.Mapping;
  * a repository count), so it is passed as a separate parameter via
  * {@code @Mapping(source = "questionCount", ...)}.
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface AssessmentMapper {
 
     @Mapping(source = "assessment.id",              target = "id")

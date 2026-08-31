@@ -23,6 +23,9 @@ public final class ApiPaths {
     public static final String STUDENT_ASSESSMENTS = API_V1 + "/student/assessments";
     public static final String STUDENT_ATTEMPTS    = API_V1 + "/student/attempts";
 
+    public static final String PROFILE     = API_V1 + "/profile";
+    public static final String ANALYTICS   = API_V1 + "/analytics";
+
     private ApiPaths() {
     }
 }

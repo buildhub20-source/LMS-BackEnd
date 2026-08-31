@@ -37,6 +37,7 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
 
     private static final Set<String> ALLOWED_PATHS = Set.of(
             ApiPaths.USERS + "/me/password",
+            ApiPaths.PROFILE + "/change-password",
             ApiPaths.AUTH + "/me",
             ApiPaths.AUTH + "/logout",
             ApiPaths.AUTH + "/logout-all"

@@ -1,11 +1,16 @@
 -- Phase 1: Additional course lifecycle permissions not included in V6
-INSERT INTO lms.permissions (id, name, resource, action, description) VALUES
-    (gen_random_uuid(), 'COURSE_APPROVE',  'COURSE', 'APPROVE',  'Approve a submitted course'),
-    (gen_random_uuid(), 'COURSE_REJECT',   'COURSE', 'REJECT',   'Reject a submitted course'),
-    (gen_random_uuid(), 'COURSE_UNPUBLISH','COURSE', 'UNPUBLISH','Unpublish a published course'),
-    (gen_random_uuid(), 'COURSE_ARCHIVE',  'COURSE', 'ARCHIVE',  'Archive a course'),
-    (gen_random_uuid(), 'COURSE_SUBMIT',   'COURSE', 'SUBMIT',   'Submit a course for admin review')
-ON CONFLICT (name) DO NOTHING;
+INSERT INTO lms.permissions (id, name, resource, action, description)
+SELECT gen_random_uuid(), seed.name, seed.resource, seed.action, seed.description
+FROM (
+    SELECT 'COURSE_APPROVE'   AS name, 'COURSE' AS resource, 'APPROVE'   AS action, 'Approve a submitted course'   AS description
+    UNION ALL SELECT 'COURSE_REJECT',   'COURSE', 'REJECT',   'Reject a submitted course'
+    UNION ALL SELECT 'COURSE_UNPUBLISH','COURSE', 'UNPUBLISH','Unpublish a published course'
+    UNION ALL SELECT 'COURSE_ARCHIVE',  'COURSE', 'ARCHIVE',  'Archive a course'
+    UNION ALL SELECT 'COURSE_SUBMIT',   'COURSE', 'SUBMIT',   'Submit a course for admin review'
+) seed
+WHERE NOT EXISTS (
+    SELECT 1 FROM lms.permissions p WHERE p.name = seed.name
+);
 
 -- ADMIN gets APPROVE, REJECT, UNPUBLISH, ARCHIVE
 INSERT INTO lms.role_permission (role_id, permission_id)
@@ -14,13 +19,19 @@ FROM lms.roles r
          CROSS JOIN lms.permissions p
 WHERE r.name = 'ADMIN'
   AND p.name IN ('COURSE_APPROVE', 'COURSE_REJECT', 'COURSE_UNPUBLISH', 'COURSE_ARCHIVE')
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+      SELECT 1 FROM lms.role_permission rp
+      WHERE rp.role_id = r.id AND rp.permission_id = p.id
+  );
 
--- INSTRUCTOR gets SUBMIT (for next phase)
+-- INSTRUCTOR gets SUBMIT
 INSERT INTO lms.role_permission (role_id, permission_id)
 SELECT r.id, p.id
 FROM lms.roles r
          CROSS JOIN lms.permissions p
 WHERE r.name = 'INSTRUCTOR'
   AND p.name = 'COURSE_SUBMIT'
-ON CONFLICT DO NOTHING;
+  AND NOT EXISTS (
+      SELECT 1 FROM lms.role_permission rp
+      WHERE rp.role_id = r.id AND rp.permission_id = p.id
+  );

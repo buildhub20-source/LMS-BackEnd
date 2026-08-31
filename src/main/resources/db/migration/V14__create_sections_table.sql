@@ -3,13 +3,13 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS lms.sections (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     assessment_id   UUID NOT NULL REFERENCES lms.assessments(id) ON DELETE CASCADE,
     title           VARCHAR(255) NOT NULL,
     description     TEXT,
     section_order   INT NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_sections_assessment

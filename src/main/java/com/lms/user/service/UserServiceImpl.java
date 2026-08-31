@@ -12,6 +12,7 @@ import com.lms.role.entity.Role;
 import com.lms.role.service.RoleService;
 import com.lms.security.authentication.AuthenticationService;
 import com.lms.security.authentication.LmsUserDetails;
+import com.lms.invitation.repository.InvitationRepository;
 import com.lms.user.dto.request.ChangePasswordRequest;
 import com.lms.user.dto.request.UpdateUserRequest;
 import com.lms.user.dto.request.UpdateUserRolesRequest;
@@ -35,6 +36,12 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
 
+import com.lms.common.service.StorageService;
+import com.lms.user.dto.request.UpdateProfileRequest;
+import com.lms.user.dto.response.UserProfileResponse;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.Base64;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -51,6 +58,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final StorageService storageService;
+    private final InvitationRepository invitationRepository;
 
     @Override
     @Transactional
@@ -180,6 +189,26 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public void deleteUser(UUID id) {
+        User user = requireWithAuthorities(id);
+        guardLastAdminRemoval(user);
+        sessionService.revokeAllForUser(user.getId());
+        // Remove all invitations associated with this user before deletion
+        invitationRepository.deleteAllByUserId(user.getId());
+        try {
+            userRepository.delete(user);
+            userRepository.flush();
+        } catch (Exception e) {
+            // Hard delete failed due to FK constraints; soft-delete instead
+            accountStatusService.deactivate(user, currentActorId(), "Account removed by administrator");
+            user.setActive(false);
+            user.setLocked(true);
+            userRepository.save(user);
+        }
+    }
+
+    @Override
     public List<AccountStatusHistoryResponse> statusHistory(UUID id) {
         return accountStatusService.history(id).stream()
                 .map(entry -> new AccountStatusHistoryResponse(entry.getId(), entry.getStatus(),
@@ -214,5 +243,74 @@ public class UserServiceImpl implements UserService {
         if (user.hasRole(SystemRoles.ADMIN) && userRepository.countByRoleName(SystemRoles.ADMIN) <= 1) {
             throw new BusinessRuleException("The last administrator cannot be locked or deactivated");
         }
+    }
+
+    @Override
+    public UserProfileResponse getProfile(UUID id) {
+        User user = requireWithAuthorities(id);
+        return toProfileResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public UserProfileResponse updateProfile(UUID id, UpdateProfileRequest request) {
+        User user = requireWithAuthorities(id);
+
+        String newName = request.getFullName();
+        if (StringUtils.hasText(newName)) {
+            user.setName(newName.trim());
+        }
+        if (request.getPhone() != null) {
+            user.setPhone(StringUtils.hasText(request.getPhone()) ? request.getPhone().trim() : null);
+        }
+        if (request.getProfileImageUrl() != null) {
+            user.setProfileImageUrl(StringUtils.hasText(request.getProfileImageUrl())
+                    ? request.getProfileImageUrl().trim() : null);
+        }
+        return toProfileResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public UserProfileResponse updateAvatar(UUID id, MultipartFile file) {
+        User user = requireWithAuthorities(id);
+        if (file != null && !file.isEmpty()) {
+            try {
+                String contentType = file.getContentType() != null ? file.getContentType() : "image/png";
+                String key = "avatars/" + user.getId() + "_" + System.currentTimeMillis() + ".png";
+                String url = null;
+                try {
+                    storageService.uploadFile(key, file.getInputStream(), file.getSize(), contentType);
+                    url = storageService.getPublicUrl(key);
+                } catch (Exception storageException) {
+                    log.warn("Storage service upload skipped/failed: {}. Falling back to inline data URL.", storageException.getMessage());
+                }
+                if (url == null || url.isBlank()) {
+                    String base64 = Base64.getEncoder().encodeToString(file.getBytes());
+                    url = "data:" + contentType + ";base64," + base64;
+                }
+                user.setProfileImageUrl(url);
+            } catch (Exception e) {
+                log.error("Failed to process avatar file upload: {}", e.getMessage(), e);
+                throw new BusinessRuleException("Failed to upload avatar: " + e.getMessage());
+            }
+        }
+        return toProfileResponse(user);
+    }
+
+    private UserProfileResponse toProfileResponse(User user) {
+        UserProfileResponse response = new UserProfileResponse();
+        response.setId(user.getId());
+        response.setName(user.getName());
+        response.setFullName(user.getName());
+        response.setEmail(user.getEmail());
+        response.setPhone(user.getPhone());
+        response.setProfileImageUrl(user.getProfileImageUrl());
+        response.setAvatarUrl(user.getProfileImageUrl());
+        response.setActive(user.isActive());
+        response.setLocked(user.isLocked());
+        response.setRoles(user.roleNames());
+        response.setCreatedAt(user.getCreatedAt());
+        return response;
     }
 }

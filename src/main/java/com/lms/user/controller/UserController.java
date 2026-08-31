@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -123,6 +124,14 @@ public class UserController {
             @PathVariable UUID id, @Valid @RequestBody(required = false) LockUserRequest request) {
 
         return ResponseEntity.ok(ApiResponse.of(userService.unlock(id, reason(request))));
+    }
+
+    @Operation(summary = "Delete / Remove a user")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('USER_DELETE')")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID id) {
+        userService.deleteUser(id);
+        return ResponseEntity.ok(ApiResponse.message("User removed successfully"));
     }
 
     @Operation(summary = "Account status history")

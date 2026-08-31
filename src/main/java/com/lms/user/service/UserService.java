@@ -38,7 +38,15 @@ public interface UserService {
 
     UserResponse unlock(UUID id, String reason);
 
+    void deleteUser(UUID id);
+
     List<AccountStatusHistoryResponse> statusHistory(UUID id);
 
     User requireWithAuthorities(UUID id);
+
+    com.lms.user.dto.response.UserProfileResponse getProfile(UUID id);
+
+    com.lms.user.dto.response.UserProfileResponse updateProfile(UUID id, com.lms.user.dto.request.UpdateProfileRequest request);
+
+    com.lms.user.dto.response.UserProfileResponse updateAvatar(UUID id, org.springframework.web.multipart.MultipartFile file);
 }

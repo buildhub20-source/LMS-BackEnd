@@ -1,6 +1,6 @@
 -- Phase 1: Course domain table
 CREATE TABLE IF NOT EXISTS lms.courses (
-    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               UUID         DEFAULT gen_random_uuid() PRIMARY KEY,
     title            VARCHAR(255) NOT NULL,
     description      TEXT,
     status           VARCHAR(30)  NOT NULL DEFAULT 'DRAFT',
@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS lms.courses (
     instructor_id    UUID         REFERENCES lms.users(id),
     duration_minutes INT,
     rejection_reason TEXT,
-    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    published_at     TIMESTAMPTZ,
-    archived_at      TIMESTAMPTZ
+    created_at       TIMESTAMP WITH TIME ZONE  NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMP WITH TIME ZONE  NOT NULL DEFAULT now(),
+    published_at     TIMESTAMP WITH TIME ZONE,
+    archived_at      TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_courses_status      ON lms.courses(status);

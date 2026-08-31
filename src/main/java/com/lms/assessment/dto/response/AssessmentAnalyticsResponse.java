@@ -12,8 +12,15 @@ public record AssessmentAnalyticsResponse(
         long nonAttendedCount,
         long completedCount,
         long inProgressCount,
+        long pendingGradingCount,
+        long passedCount,
+        long failedCount,
+        double passPercentage,
         double averageScore,
         double averageCompletionPercentage,
+        int highestScore,
+        int lowestScore,
         List<StudentAssessmentStatDto> studentStats,
-        List<ScoreDistributionBucketDto> scoreDistribution
+        List<ScoreDistributionBucketDto> scoreDistribution,
+        List<GradeDistributionDto> gradeDistribution
 ) {}

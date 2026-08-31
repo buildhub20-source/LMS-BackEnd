@@ -29,6 +29,10 @@ public record UpdateAssessmentRequest(
         @Max(value = 10, message = "Max attempts cannot exceed 10")
         Integer maxAttempts,
 
+        Boolean randomizeQuestions,
+
+        String retakePolicy,
+
         Instant startTime,
 
         Instant endTime

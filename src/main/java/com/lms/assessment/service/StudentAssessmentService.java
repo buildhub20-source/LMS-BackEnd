@@ -10,6 +10,10 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
+import com.lms.assessment.dto.response.AssessmentResultReportResponse;
+import com.lms.assessment.dto.response.AttemptHistoryResponse;
+import java.util.List;
+
 public interface StudentAssessmentService {
 
     /** List all published assessments. */
@@ -26,4 +30,10 @@ public interface StudentAssessmentService {
 
     /** Get current status and code submissions for an attempt. */
     AttemptDetailResponse getAttemptDetail(UUID attemptId, UUID studentId);
+
+    /** Get history of all attempts taken by a student for an assessment. */
+    List<AttemptHistoryResponse> getStudentAttemptHistory(UUID assessmentId, UUID studentId);
+
+    /** Get comprehensive result report for a completed attempt. */
+    AssessmentResultReportResponse getStudentResultReport(UUID attemptId, UUID studentId);
 }

@@ -1,8 +1,7 @@
 -- Ensures assessment permissions exist and are granted to the correct roles.
 --
--- Idempotent by construction: the original V8 seed collided on a version number
--- and never ran, so this migration has to be safe against databases where the
--- rows are already present and against fresh ones where they are not.
+-- Idempotent by construction: safe against databases where the rows are already
+-- present and against fresh ones where they are not.
 --
 -- Uses WHERE NOT EXISTS rather than ON CONFLICT: H2's PostgreSQL compatibility
 -- mode (what MigrationSchemaCheckTest runs on) rejects a conflict target, so

@@ -63,5 +63,10 @@ public interface AdminAssessmentService {
      * Archived assessments are hidden from all listing UIs.
      */
     AssessmentResponse archive(UUID id);
+
+    /**
+     * Get statistical analytics and student performance breakdowns for an assessment.
+     */
+    com.lms.assessment.dto.response.AssessmentAnalyticsResponse getAnalytics(UUID id);
 }
 

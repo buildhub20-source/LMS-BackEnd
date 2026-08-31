@@ -17,6 +17,8 @@ public record AssessmentResponse(
         int durationMinutes,
         int totalMarks,
         int maxAttempts,
+        boolean randomizeQuestions,
+        String retakePolicy,
         AssessmentStatus status,
         Instant startTime,
         Instant endTime,

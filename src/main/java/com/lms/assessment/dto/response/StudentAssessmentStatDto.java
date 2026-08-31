@@ -11,6 +11,8 @@ public record StudentAssessmentStatDto(
         Integer score,
         Integer totalMarks,
         Double completionPercentage,
+        String gradeLetter,
+        Boolean passed,
         Integer attemptsCount,
         Instant submittedAt
 ) {}

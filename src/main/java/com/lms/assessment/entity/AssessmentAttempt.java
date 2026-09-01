@@ -80,6 +80,18 @@ public class AssessmentAttempt {
     @Column(name = "score")
     private Integer score;
 
+    /** Cloudflare R2 public or base URL for the screen recording. */
+    @Column(name = "recording_url", length = 1024)
+    private String recordingUrl;
+
+    /** Cloudflare R2 object key (e.g. assessments/attempts/{attemptId}/{uuid}.webm). */
+    @Column(name = "recording_key", length = 512)
+    private String recordingKey;
+
+    /** Duration of the recorded screen session in seconds. */
+    @Column(name = "recording_duration_seconds")
+    private Integer recordingDurationSeconds;
+
     // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------

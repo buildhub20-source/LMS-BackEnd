@@ -29,6 +29,10 @@ public record CreateAssessmentRequest(
         @Max(value = 10, message = "Max attempts cannot exceed 10")
         Integer maxAttempts,
 
+        Boolean randomizeQuestions,
+
+        String retakePolicy,
+
         /** Optional: if null, the assessment window is open-ended once published. */
         Instant startTime,
 
@@ -44,6 +48,8 @@ public record CreateAssessmentRequest(
                 durationMinutes != null ? durationMinutes : 60,
                 totalMarks != null ? totalMarks : 0,
                 maxAttempts != null ? maxAttempts : 1,
+                randomizeQuestions != null ? randomizeQuestions : false,
+                retakePolicy != null ? retakePolicy : "BEST_SCORE",
                 startTime,
                 endTime
         );

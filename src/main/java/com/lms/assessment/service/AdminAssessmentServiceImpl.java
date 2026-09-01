@@ -5,12 +5,14 @@ import com.lms.assessment.dto.request.UpdateAssessmentRequest;
 import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
+import com.lms.assessment.dto.response.GradeDistributionDto;
 import com.lms.assessment.dto.response.ScoreDistributionBucketDto;
 import com.lms.assessment.dto.response.StudentAssessmentStatDto;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentAttempt;
 import com.lms.assessment.entity.AssessmentStatus;
 import com.lms.assessment.entity.AttemptStatus;
+import com.lms.assessment.entity.RetakePolicy;
 import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
@@ -62,12 +64,21 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     public AssessmentResponse create(CreateAssessmentRequest request, UUID createdBy) {
         CreateAssessmentRequest req = request.withDefaults();
 
+        RetakePolicy policy = RetakePolicy.BEST_SCORE;
+        if (req.retakePolicy() != null) {
+            try {
+                policy = RetakePolicy.valueOf(req.retakePolicy().toUpperCase());
+            } catch (IllegalArgumentException ignored) {}
+        }
+
         Assessment assessment = Assessment.builder()
                 .title(req.title().trim())
                 .description(req.description())
                 .durationMinutes(req.durationMinutes())
                 .totalMarks(req.totalMarks())
                 .maxAttempts(req.maxAttempts())
+                .randomizeQuestions(Boolean.TRUE.equals(req.randomizeQuestions()))
+                .retakePolicy(policy)
                 .startTime(req.startTime())
                 .endTime(req.endTime())
                 .status(AssessmentStatus.DRAFT)
@@ -127,6 +138,14 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         // from the sum of all AssessmentQuestion.marks values.
         if (request.maxAttempts() != null) {
             assessment.setMaxAttempts(request.maxAttempts());
+        }
+        if (request.randomizeQuestions() != null) {
+            assessment.setRandomizeQuestions(request.randomizeQuestions());
+        }
+        if (StringUtils.hasText(request.retakePolicy())) {
+            try {
+                assessment.setRetakePolicy(RetakePolicy.valueOf(request.retakePolicy().toUpperCase()));
+            } catch (IllegalArgumentException ignored) {}
         }
         // Null start/end times are meaningful (clearing an existing window)
         if (request.startTime() != null || request.endTime() != null) {
@@ -319,6 +338,17 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         int totalMarks = assessment.getTotalMarks();
         double averageCompletionPercentage = (totalMarks > 0) ? (averageScore / totalMarks) * 100.0 : 0.0;
 
+        int highestScore = completedAttempts.stream().mapToInt(AssessmentAttempt::getScore).max().orElse(0);
+        int lowestScore = completedAttempts.stream().mapToInt(AssessmentAttempt::getScore).min().orElse(0);
+
+        long pendingGradingCount = attempts.stream()
+                .filter(a -> a.getStatus() == AttemptStatus.SUBMITTED && a.getScore() == null)
+                .count();
+
+        long passedCount = 0;
+        long failedCount = 0;
+        long gradeA = 0, gradeB = 0, gradeC = 0, gradeD = 0, gradeF = 0;
+
         List<StudentAssessmentStatDto> studentStats = new ArrayList<>();
         for (UUID studentId : studentIds) {
             List<AssessmentAttempt> userAttempts = attemptsByStudent.get(studentId);
@@ -337,6 +367,24 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                     .orElse(latestAttempt.getScore());
             Double pct = (score != null && totalMarks > 0) ? (score.doubleValue() / totalMarks) * 100.0 : 0.0;
 
+            String gradeLetter = "F";
+            boolean passed = pct >= 50.0;
+            if (pct >= 90.0) gradeLetter = "A";
+            else if (pct >= 80.0) gradeLetter = "B";
+            else if (pct >= 70.0) gradeLetter = "C";
+            else if (pct >= 60.0) gradeLetter = "D";
+
+            if (score != null) {
+                if (passed) passedCount++; else failedCount++;
+                switch (gradeLetter) {
+                    case "A" -> gradeA++;
+                    case "B" -> gradeB++;
+                    case "C" -> gradeC++;
+                    case "D" -> gradeD++;
+                    default -> gradeF++;
+                }
+            }
+
             studentStats.add(new StudentAssessmentStatDto(
                     studentId,
                     studentName,
@@ -345,10 +393,14 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                     score,
                     totalMarks,
                     Math.round(pct * 10.0) / 10.0,
+                    gradeLetter,
+                    passed,
                     userAttempts.size(),
                     latestAttempt.getSubmittedAt() != null ? latestAttempt.getSubmittedAt() : latestAttempt.getStartedAt()
             ));
         }
+
+        double passPercentage = completedCount > 0 ? (passedCount * 100.0 / completedCount) : 0.0;
 
         long b1 = 0, b2 = 0, b3 = 0, b4 = 0;
         for (AssessmentAttempt a : completedAttempts) {
@@ -368,6 +420,15 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                 new ScoreDistributionBucketDto("76-100%", b4)
         );
 
+        long totalGraded = completedAttempts.size();
+        List<GradeDistributionDto> gradeDistribution = List.of(
+                new GradeDistributionDto("A", "90-100%", gradeA, totalGraded > 0 ? Math.round((gradeA * 100.0 / totalGraded) * 10.0) / 10.0 : 0.0),
+                new GradeDistributionDto("B", "80-89%", gradeB, totalGraded > 0 ? Math.round((gradeB * 100.0 / totalGraded) * 10.0) / 10.0 : 0.0),
+                new GradeDistributionDto("C", "70-79%", gradeC, totalGraded > 0 ? Math.round((gradeC * 100.0 / totalGraded) * 10.0) / 10.0 : 0.0),
+                new GradeDistributionDto("D", "60-69%", gradeD, totalGraded > 0 ? Math.round((gradeD * 100.0 / totalGraded) * 10.0) / 10.0 : 0.0),
+                new GradeDistributionDto("F", "<60%", gradeF, totalGraded > 0 ? Math.round((gradeF * 100.0 / totalGraded) * 10.0) / 10.0 : 0.0)
+        );
+
         return new AssessmentAnalyticsResponse(
                 assessment.getId(),
                 assessment.getTitle(),
@@ -377,10 +438,17 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                 nonAttendedCount,
                 completedCount,
                 inProgressCount,
+                pendingGradingCount,
+                passedCount,
+                failedCount,
+                Math.round(passPercentage * 10.0) / 10.0,
                 Math.round(averageScore * 10.0) / 10.0,
                 Math.round(averageCompletionPercentage * 10.0) / 10.0,
+                highestScore,
+                lowestScore,
                 studentStats,
-                scoreDistribution
+                scoreDistribution,
+                gradeDistribution
         );
     }
 }

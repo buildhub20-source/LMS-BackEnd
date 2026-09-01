@@ -64,6 +64,15 @@ public class Assessment extends Timestamped {
     @Column(name = "status", nullable = false, length = 30)
     private AssessmentStatus status = AssessmentStatus.DRAFT;
 
+    @Builder.Default
+    @Column(name = "randomize_questions", nullable = false)
+    private boolean randomizeQuestions = false;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "retake_policy", nullable = false, length = 30)
+    private RetakePolicy retakePolicy = RetakePolicy.BEST_SCORE;
+
     /** Optional window: if null, the assessment is open-ended once published. */
     @Column(name = "start_time")
     private Instant startTime;

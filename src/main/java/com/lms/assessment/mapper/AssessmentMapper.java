@@ -22,6 +22,8 @@ public interface AssessmentMapper {
     @Mapping(source = "assessment.durationMinutes", target = "durationMinutes")
     @Mapping(source = "assessment.totalMarks",      target = "totalMarks")
     @Mapping(source = "assessment.maxAttempts",     target = "maxAttempts")
+    @Mapping(source = "assessment.randomizeQuestions", target = "randomizeQuestions")
+    @Mapping(source = "assessment.retakePolicy",    target = "retakePolicy")
     @Mapping(source = "assessment.status",          target = "status")
     @Mapping(source = "assessment.startTime",       target = "startTime")
     @Mapping(source = "assessment.endTime",         target = "endTime")

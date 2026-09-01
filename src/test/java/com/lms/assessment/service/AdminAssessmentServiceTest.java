@@ -76,7 +76,7 @@ class AdminAssessmentServiceTest {
         return new AssessmentResponse(
                 assessment.getId(), assessment.getTitle(), assessment.getDescription(),
                 assessment.getDurationMinutes(), assessment.getTotalMarks(),
-                assessment.getMaxAttempts(), assessment.getStatus(),
+                assessment.getMaxAttempts(), false, "BEST_SCORE", assessment.getStatus(),
                 assessment.getStartTime(), assessment.getEndTime(),
                 assessment.getCreatedBy(), Instant.now(), Instant.now(),
                 questionCount
@@ -95,7 +95,7 @@ class AdminAssessmentServiceTest {
         @DisplayName("persists a DRAFT assessment and returns the response")
         void createsADraftAssessment() {
             CreateAssessmentRequest request = new CreateAssessmentRequest(
-                    "Java Fundamentals", "Description", 60, 100, 1, null, null);
+                    "Java Fundamentals", "Description", 60, 100, 1, false, "BEST_SCORE", null, null);
 
             Assessment saved = draftAssessment();
             when(assessmentRepository.save(any(Assessment.class))).thenReturn(saved);
@@ -115,7 +115,7 @@ class AdminAssessmentServiceTest {
         @DisplayName("applies default durationMinutes when not provided")
         void appliesDefaultDuration() {
             CreateAssessmentRequest request = new CreateAssessmentRequest(
-                    "Test", null, null, null, null, null, null);
+                    "Test", null, null, null, null, null, null, null, null);
 
             when(assessmentRepository.save(any(Assessment.class))).thenAnswer(invocation -> {
                 Assessment a = invocation.getArgument(0);
@@ -126,7 +126,7 @@ class AdminAssessmentServiceTest {
             });
             when(assessmentQuestionRepository.countByAssessmentId(any())).thenReturn(0L);
             when(assessmentMapper.toResponse(any(), anyLong())).thenReturn(
-                    new AssessmentResponse(assessmentId, "Test", null, 60, 0, 1,
+                    new AssessmentResponse(assessmentId, "Test", null, 60, 0, 1, false, "BEST_SCORE",
                             AssessmentStatus.DRAFT, null, null, adminId, Instant.now(), Instant.now(), 0)
             );
 
@@ -184,7 +184,7 @@ class AdminAssessmentServiceTest {
             when(assessmentMapper.toResponse(any(), anyLong())).thenReturn(stubResponse(assessment, 0));
 
             UpdateAssessmentRequest request = new UpdateAssessmentRequest(
-                    "Updated Title", null, null, null, null, null);
+                    "Updated Title", null, null, null, false, "BEST_SCORE", null, null);
             service.update(assessmentId, request);
 
             assertThat(assessment.getTitle()).isEqualTo("Updated Title");
@@ -199,7 +199,7 @@ class AdminAssessmentServiceTest {
             when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
 
             UpdateAssessmentRequest request = new UpdateAssessmentRequest(
-                    "Title", null, null, null, null, null);
+                    "Title", null, null, null, false, "BEST_SCORE", null, null);
 
             assertThatThrownBy(() -> service.update(assessmentId, request))
                     .isInstanceOf(BusinessRuleException.class)

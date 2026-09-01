@@ -13,6 +13,8 @@ import com.lms.course.entity.Course;
 import com.lms.course.entity.CourseStatus;
 import com.lms.course.mapper.CourseMapper;
 import com.lms.course.repository.CourseRepository;
+import com.lms.enrollment.entity.Enrollment;
+import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.security.authentication.AuthenticationService;
 import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ public class CourseServiceImpl implements CourseService {
     private final CourseMapper courseMapper;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
     // ─── CRUD ────────────────────────────────────────────────────────────────
 
@@ -175,7 +178,20 @@ public class CourseServiceImpl implements CourseService {
         return toResponse(saved);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    // ─── Student: My Enrolled Courses ──────────────────────────────────────────
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CourseResponse> getMyEnrolledCourses(UUID studentId, Pageable pageable) {
+        Page<Enrollment> enrollments = enrollmentRepository.findByStudentId(studentId, pageable);
+        return enrollments.map(enrollment -> {
+            Course course = enrollment.getCourse();
+            Map<UUID, String> names = resolveNames(List.of(course));
+            return courseMapper.toResponse(course, names);
+        });
+    }
+
+    // ─── Private helpers ─────────────────────────────────────────────────────────────
 
     private Course requireCourse(UUID id) {
         return courseRepository.findById(id)

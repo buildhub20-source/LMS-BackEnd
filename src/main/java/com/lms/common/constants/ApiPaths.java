@@ -25,6 +25,7 @@ public final class ApiPaths {
 
     public static final String PROFILE     = API_V1 + "/profile";
     public static final String ANALYTICS   = API_V1 + "/analytics";
+    public static final String ADMIN_AUDIT_LOGS = API_V1 + "/admin/audit-logs";
 
     private ApiPaths() {
     }

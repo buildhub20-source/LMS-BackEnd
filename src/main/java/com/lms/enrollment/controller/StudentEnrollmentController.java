@@ -22,14 +22,14 @@ public class StudentEnrollmentController {
     private final EnrollmentService enrollmentService;
 
     @GetMapping
-    @PreAuthorize("hasRole('STUDENT')")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public Page<EnrollmentResponse> getMyEnrollments(Pageable pageable) {
         UUID studentId = AuthenticationService.requirePrincipal().getUserId();
         return enrollmentService.getEnrollmentsByStudent(studentId, pageable);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('STUDENT')")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public EnrollmentResponse getEnrollmentById(@PathVariable UUID id) {
         UUID studentId = AuthenticationService.requirePrincipal().getUserId();
         return enrollmentService.getEnrollmentByIdForStudent(id, studentId);

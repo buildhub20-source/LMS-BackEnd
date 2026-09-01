@@ -6,6 +6,7 @@ import com.lms.course.dto.request.RejectCourseRequest;
 import com.lms.course.dto.request.UpdateCourseRequest;
 import com.lms.course.dto.response.CourseResponse;
 import com.lms.course.entity.CourseStatus;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
@@ -42,4 +43,7 @@ public interface CourseService {
 
     /** Admin reject: PENDING_REVIEW → DRAFT. */
     CourseResponse reject(UUID id, RejectCourseRequest request);
+
+    /** Returns courses the given student is enrolled in (for /courses/mine). */
+    Page<CourseResponse> getMyEnrolledCourses(UUID studentId, Pageable pageable);
 }

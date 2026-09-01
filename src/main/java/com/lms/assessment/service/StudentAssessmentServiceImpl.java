@@ -63,6 +63,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     private final RubricScoreRepository rubricScoreRepository;
     private final UserRepository userRepository;
     private final AssessmentMapper assessmentMapper;
+    private final com.lms.common.service.StorageService storageService;
 
     @Override
     public PageResponse<AssessmentSummaryResponse> listPublished(Pageable pageable) {
@@ -178,6 +179,20 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     @Transactional
     public AttemptDetailResponse submitAttempt(UUID attemptId, UUID studentId) {
         AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
+
+        // If already submitted, return the details idempotently without throwing error
+        if (attempt.getStatus() == AttemptStatus.SUBMITTED) {
+            List<Submission> allSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
+            return buildAttemptDetail(attempt, allSubmissions);
+        }
+
+        // If expired, auto-finalize draft submissions and return
+        if (attempt.getStatus() == AttemptStatus.EXPIRED || attempt.isExpiredByTime()) {
+            handleAttemptExpiry(attempt);
+            List<Submission> allSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
+            return buildAttemptDetail(attempt, allSubmissions);
+        }
+
         validateAttemptActive(attempt);
 
         Instant now = Instant.now();
@@ -185,9 +200,13 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         attempt.setSubmittedAt(now);
         attemptRepository.save(attempt);
 
+        // Fetch existing submissions
+        List<Submission> existingSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
+        Map<UUID, Submission> submissionByQuestion = existingSubmissions.stream()
+                .collect(Collectors.toMap(Submission::getQuestionId, s -> s, (a, b) -> a));
+
         // Update all draft submissions to SUBMITTED
-        List<Submission> submissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
-        for (Submission sub : submissions) {
+        for (Submission sub : existingSubmissions) {
             if ("DRAFT".equals(sub.getStatus())) {
                 sub.setStatus("SUBMITTED");
                 sub.setSubmittedAt(now);
@@ -195,8 +214,26 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
             }
         }
 
-        log.info("Student {} submitted attempt {}", studentId, attemptId);
-        return buildAttemptDetail(attempt, submissions);
+        // Ensure any questions without a submission record also get a SUBMITTED entry
+        List<AssessmentQuestion> aqList = assessmentQuestionRepository.findByAssessmentIdOrderByQuestionOrderAsc(attempt.getAssessment().getId());
+        for (AssessmentQuestion aq : aqList) {
+            if (!submissionByQuestion.containsKey(aq.getQuestion().getId())) {
+                Submission blankSub = Submission.builder()
+                        .attempt(attempt)
+                        .questionId(aq.getQuestion().getId())
+                        .studentId(studentId)
+                        .language("JAVA")
+                        .sourceCode("")
+                        .status("SUBMITTED")
+                        .submittedAt(now)
+                        .build();
+                submissionRepository.save(blankSub);
+            }
+        }
+
+        List<Submission> allSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
+        log.info("Student {} successfully submitted attempt {} (status set to SUBMITTED in DB)", studentId, attemptId);
+        return buildAttemptDetail(attempt, allSubmissions);
     }
 
     @Override
@@ -310,6 +347,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         }
 
         List<AttemptHistoryResponse> history = getStudentAttemptHistory(assessment.getId(), studentId);
+        String playbackUrl = getRecordingPlaybackUrl(attempt.getId(), studentId);
 
         return new AssessmentResultReportResponse(
                 attempt.getId(),
@@ -328,9 +366,88 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 timeSpentSeconds,
                 attempt.getStartedAt(),
                 attempt.getSubmittedAt(),
+                playbackUrl,
+                attempt.getRecordingDurationSeconds(),
                 qResults,
                 history
         );
+    }
+
+    @Override
+    public com.lms.assessment.dto.response.GenerateAttemptRecordingUploadUrlResponse generateRecordingUploadUrl(
+            UUID attemptId, UUID studentId, com.lms.assessment.dto.request.GenerateAttemptRecordingUploadUrlRequest request) {
+        AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
+
+        String contentType = request.contentType() != null && !request.contentType().isBlank()
+                ? request.contentType()
+                : "video/webm";
+        String objectKey = String.format("assessments/attempts/%s/%s.webm", attemptId, UUID.randomUUID());
+
+        String presignedUrl = storageService.generatePresignedUploadUrl(objectKey, contentType);
+        String publicUrl = storageService.getPublicUrl(objectKey);
+
+        log.info("Generated Cloudflare R2 upload URL for attempt {} key {}", attemptId, objectKey);
+
+        return new com.lms.assessment.dto.response.GenerateAttemptRecordingUploadUrlResponse(
+                attemptId,
+                presignedUrl,
+                objectKey,
+                publicUrl,
+                presignedUrl != null
+        );
+    }
+
+    @Override
+    @Transactional
+    public void completeRecordingUpload(
+            UUID attemptId, UUID studentId, com.lms.assessment.dto.request.CompleteAttemptRecordingUploadRequest request) {
+        AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
+
+        attempt.setRecordingKey(request.key());
+        attempt.setRecordingUrl(storageService.getPublicUrl(request.key()));
+        if (request.durationSeconds() != null) {
+            attempt.setRecordingDurationSeconds(request.durationSeconds());
+        }
+
+        attemptRepository.save(attempt);
+        log.info("Completed Cloudflare R2 recording upload for attempt {}: key={}", attemptId, request.key());
+    }
+
+    @Override
+    @Transactional
+    public void uploadRecordingDirect(
+            UUID attemptId, UUID studentId, org.springframework.web.multipart.MultipartFile file, Integer durationSeconds) {
+        AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
+
+        String contentType = file.getContentType() != null ? file.getContentType() : "video/webm";
+        String objectKey = String.format("assessments/attempts/%s/%s.webm", attemptId, UUID.randomUUID());
+
+        try {
+            storageService.uploadFile(objectKey, file.getInputStream(), file.getSize(), contentType);
+            attempt.setRecordingKey(objectKey);
+            attempt.setRecordingUrl(storageService.getPublicUrl(objectKey));
+            if (durationSeconds != null) {
+                attempt.setRecordingDurationSeconds(durationSeconds);
+            }
+            attemptRepository.save(attempt);
+            log.info("Directly uploaded screen recording to Cloudflare R2 for attempt {}", attemptId);
+        } catch (Exception e) {
+            log.error("Failed to upload screen recording directly for attempt {}: {}", attemptId, e.getMessage(), e);
+            throw new com.lms.common.exception.ApplicationException(
+                    com.lms.common.exception.ErrorCode.INTERNAL_ERROR,
+                    "Failed to upload screen recording to Cloudflare R2: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public String getRecordingPlaybackUrl(UUID attemptId, UUID studentId) {
+        AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
+        if (attempt.getRecordingKey() == null || attempt.getRecordingKey().isBlank()) {
+            return attempt.getRecordingUrl();
+        }
+
+        String presignedUrl = storageService.generatePresignedGetUrl(attempt.getRecordingKey());
+        return presignedUrl != null ? presignedUrl : attempt.getRecordingUrl();
     }
 
     // ---------------------------------------------------------------

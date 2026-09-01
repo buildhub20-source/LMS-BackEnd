@@ -36,4 +36,19 @@ public interface StudentAssessmentService {
 
     /** Get comprehensive result report for a completed attempt. */
     AssessmentResultReportResponse getStudentResultReport(UUID attemptId, UUID studentId);
+
+    /** Generate presigned Cloudflare R2 upload URL for screen recording. */
+    com.lms.assessment.dto.response.GenerateAttemptRecordingUploadUrlResponse generateRecordingUploadUrl(
+            UUID attemptId, UUID studentId, com.lms.assessment.dto.request.GenerateAttemptRecordingUploadUrlRequest request);
+
+    /** Finalize Cloudflare R2 screen recording metadata on attempt. */
+    void completeRecordingUpload(
+            UUID attemptId, UUID studentId, com.lms.assessment.dto.request.CompleteAttemptRecordingUploadRequest request);
+
+    /** Direct multipart upload fallback for screen recording file. */
+    void uploadRecordingDirect(
+            UUID attemptId, UUID studentId, org.springframework.web.multipart.MultipartFile file, Integer durationSeconds);
+
+    /** Generate presigned playback URL for viewing attempt screen recording. */
+    String getRecordingPlaybackUrl(UUID attemptId, UUID studentId);
 }

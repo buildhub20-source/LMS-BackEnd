@@ -103,4 +103,48 @@ public class StudentAssessmentController {
         AssessmentResultReportResponse response = studentAssessmentService.getStudentResultReport(attemptId, principal.getUserId());
         return ResponseEntity.ok(ApiResponse.of(response));
     }
+
+    @Operation(summary = "Generate presigned Cloudflare R2 upload URL for screen recording")
+    @PostMapping("/attempts/{attemptId}/recording/upload-url")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<com.lms.assessment.dto.response.GenerateAttemptRecordingUploadUrlResponse>> generateRecordingUploadUrl(
+            @PathVariable UUID attemptId,
+            @Valid @RequestBody com.lms.assessment.dto.request.GenerateAttemptRecordingUploadUrlRequest request) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        com.lms.assessment.dto.response.GenerateAttemptRecordingUploadUrlResponse response =
+                studentAssessmentService.generateRecordingUploadUrl(attemptId, principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.of(response, "Presigned upload URL generated"));
+    }
+
+    @Operation(summary = "Finalize screen recording upload to Cloudflare R2")
+    @PostMapping("/attempts/{attemptId}/recording/complete")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<Void>> completeRecordingUpload(
+            @PathVariable UUID attemptId,
+            @Valid @RequestBody com.lms.assessment.dto.request.CompleteAttemptRecordingUploadRequest request) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        studentAssessmentService.completeRecordingUpload(attemptId, principal.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.of(null, "Recording upload completed"));
+    }
+
+    @Operation(summary = "Direct multipart upload fallback for screen recording")
+    @PostMapping(value = "/attempts/{attemptId}/recording/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<Void>> uploadRecordingDirect(
+            @PathVariable UUID attemptId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @org.springframework.web.bind.annotation.RequestParam(value = "durationSeconds", required = false) Integer durationSeconds) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        studentAssessmentService.uploadRecordingDirect(attemptId, principal.getUserId(), file, durationSeconds);
+        return ResponseEntity.ok(ApiResponse.of(null, "Screen recording uploaded successfully"));
+    }
+
+    @Operation(summary = "Get presigned playback URL for attempt screen recording")
+    @GetMapping("/attempts/{attemptId}/recording/playback-url")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    public ResponseEntity<ApiResponse<String>> getRecordingPlaybackUrl(@PathVariable UUID attemptId) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        String playbackUrl = studentAssessmentService.getRecordingPlaybackUrl(attemptId, principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.of(playbackUrl));
+    }
 }

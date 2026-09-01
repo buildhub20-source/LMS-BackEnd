@@ -23,6 +23,8 @@ public record AssessmentResultReportResponse(
         long timeSpentSeconds,
         Instant startedAt,
         Instant submittedAt,
+        String recordingPlaybackUrl,
+        Integer recordingDurationSeconds,
         List<QuestionResultDto> questionResults,
         List<AttemptHistoryResponse> attemptHistory
 ) {

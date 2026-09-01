@@ -64,6 +64,13 @@ public class CourseController {
         return ResponseEntity.ok(ApiResponse.of(courseService.search(search, status, pageable)));
     }
 
+    @Operation(summary = "List courses the authenticated user is enrolled in")
+    @GetMapping("/mine")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<CourseResponse>>> myCourses(Pageable pageable) {
+        UUID userId = com.lms.security.authentication.AuthenticationService.requirePrincipal().getUserId();
+        return ResponseEntity.ok(ApiResponse.of(courseService.getMyEnrolledCourses(userId, pageable)));
+    }
+
     @Operation(summary = "Get a single course by ID")
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('COURSE_VIEW')")

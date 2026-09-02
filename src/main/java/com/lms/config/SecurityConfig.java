@@ -1,11 +1,15 @@
 package com.lms.config;
 
 import com.lms.common.constants.ApiPaths;
+import com.lms.config.InternalApiConfig;
 import com.lms.security.authentication.CustomUserDetailsService;
 import com.lms.security.authorization.JwtAccessDeniedHandler;
 import com.lms.security.authorization.PasswordChangeRequiredFilter;
+import com.lms.security.authorization.ServiceKeyAuthFilter;
 import com.lms.security.jwt.JwtAuthenticationEntryPoint;
 import com.lms.security.jwt.JwtAuthenticationFilter;
+import com.lms.platform.security.PlatformJwtAuthenticationFilter;
+import com.lms.platform.runtime.TenantContextFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.actuate.autoconfigure.endpoint.web.WebEndpointProperties;
 import org.springframework.context.annotation.Bean;
@@ -40,18 +44,32 @@ public class SecurityConfig {
             ApiPaths.AUTH + "/forgot-password",
             ApiPaths.AUTH + "/reset-password",
             ApiPaths.AUTH + "/accept-invitation",
+            ApiPaths.PLATFORM + "/auth/login",
+            ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
     };
 
+    /**
+     * Paths handled exclusively by {@link ServiceKeyAuthFilter}.
+     * They are marked as permitAll in the JWT security chain because
+     * the service-key filter already enforces access control on them.
+     */
+    private static final String[] INTERNAL_ENDPOINTS = {
+            ApiPaths.INTERNAL + "/**"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final PlatformJwtAuthenticationFilter platformJwtAuthenticationFilter;
+    private final TenantContextFilter tenantContextFilter;
     private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final JwtAccessDeniedHandler accessDeniedHandler;
     private final CustomUserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource;
     private final WebEndpointProperties webEndpointProperties;
+    private final InternalApiConfig internalApiConfig;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -67,16 +85,28 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(INTERNAL_ENDPOINTS).permitAll() // guarded by ServiceKeyAuthFilter
+                        .requestMatchers(ApiPaths.PLATFORM + "/**").hasAuthority("PLATFORM_ADMIN")
                         .requestMatchers(actuatorBase + "/health/**", actuatorBase + "/info").permitAll()
                         .requestMatchers(actuatorBase + "/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .authenticationProvider(daoAuthenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // Establish tenant context first so both service-to-service and JWT requests
+                // use the selected tenant database.
+                .addFilterBefore(tenantContextFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(serviceKeyAuthFilter(), TenantContextFilter.class)
+                .addFilterAfter(platformJwtAuthenticationFilter, ServiceKeyAuthFilter.class)
+                .addFilterAfter(jwtAuthenticationFilter, PlatformJwtAuthenticationFilter.class)
                 // Must sit after the JWT filter: it inspects the principal that
                 // filter establishes.
                 .addFilterAfter(passwordChangeRequiredFilter, JwtAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    public ServiceKeyAuthFilter serviceKeyAuthFilter() {
+        return new ServiceKeyAuthFilter(internalApiConfig);
     }
 
     @Bean

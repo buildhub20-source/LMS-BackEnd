@@ -27,6 +27,15 @@ public final class ApiPaths {
     public static final String ANALYTICS   = API_V1 + "/analytics";
     public static final String ADMIN_AUDIT_LOGS = API_V1 + "/admin/audit-logs";
 
+    /** Global control-plane APIs. These are never served from a tenant database. */
+    public static final String PLATFORM    = API_V1 + "/platform";
+
+    /** Internal service-to-service API (protected by X-Service-Key). */
+    public static final String INTERNAL    = API_V1 + "/internal";
+
+    /** Well-known discovery endpoints (public). */
+    public static final String WELL_KNOWN  = API_V1 + "/.well-known";
+
     private ApiPaths() {
     }
 }

@@ -4,6 +4,7 @@ import com.lms.common.constants.SecurityConstants;
 import com.lms.common.exception.InvalidTokenException;
 import com.lms.config.JwtConfig;
 import com.lms.security.authentication.LmsUserDetails;
+import com.lms.platform.runtime.TenantContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -62,6 +63,8 @@ public class JwtService {
         claims.put(SecurityConstants.CLAIM_ROLES, List.copyOf(principal.getRoles()));
         claims.put(SecurityConstants.CLAIM_PERMISSIONS, List.copyOf(principal.getPermissions()));
         claims.put(SecurityConstants.CLAIM_TOKEN_TYPE, SecurityConstants.TOKEN_TYPE_ACCESS);
+        TenantContext.current().ifPresent(tenant ->
+                claims.put(SecurityConstants.CLAIM_TENANT_ID, tenant.tenantId().toString()));
 
         return Jwts.builder()
                 .subject(principal.getUsername())
@@ -97,6 +100,17 @@ public class JwtService {
 
     public Set<String> permissions(Claims claims) {
         return claimAsSet(claims, SecurityConstants.CLAIM_PERMISSIONS);
+    }
+
+    /** Null means a legacy token issued before platform tenancy was enabled. */
+    public UUID tenantIdOrNull(Claims claims) {
+        String value = claims.get(SecurityConstants.CLAIM_TENANT_ID, String.class);
+        if (value == null) return null;
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            throw new InvalidTokenException("Token tenant claim is not a valid identifier");
+        }
     }
 
     public long accessTokenTtlSeconds() {

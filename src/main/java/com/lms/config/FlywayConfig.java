@@ -6,8 +6,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Custom Flyway migration strategy.
- * Executes {@code flyway.repair()} prior to {@code flyway.migrate()} so that checksum
- * mismatches caused by line-ending conversions across environments are automatically resolved.
+ * Migration history is immutable: automatic repair can mark missing migrations
+ * as deleted, which makes tenant database provisioning non-reproducible. Repair
+ * must therefore be an explicit, reviewed operational action.
  */
 @Configuration
 public class FlywayConfig {
@@ -15,7 +16,6 @@ public class FlywayConfig {
     @Bean
     public FlywayMigrationStrategy flywayMigrationStrategy() {
         return flyway -> {
-            flyway.repair();
             flyway.migrate();
         };
     }

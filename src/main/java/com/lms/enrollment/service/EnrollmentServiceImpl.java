@@ -3,6 +3,7 @@ package com.lms.enrollment.service;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
+import com.lms.common.client.CertificateWebhookClient;
 import com.lms.course.entity.Course;
 import com.lms.course.entity.CourseStatus;
 import com.lms.course.repository.CourseRepository;
@@ -13,6 +14,7 @@ import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.entity.EnrollmentStatus;
 import com.lms.enrollment.mapper.EnrollmentMapper;
 import com.lms.enrollment.repository.EnrollmentRepository;
+import com.lms.platform.runtime.TenantContext;
 import com.lms.user.entity.User;
 import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final EnrollmentMapper enrollmentMapper;
+    private final CertificateWebhookClient certificateWebhookClient;
 
     // --- Admin Operations ---
 
@@ -151,12 +154,23 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
 
         enrollment.setStatus(request.status());
-        
+
         if (request.status() == EnrollmentStatus.COMPLETED && enrollment.getCompletedAt() == null) {
             enrollment.setCompletedAt(Instant.now());
         }
 
         Enrollment saved = enrollmentRepository.save(enrollment);
+
+        // Notify the certificate service asynchronously (fire-and-forget).
+        // The call is non-blocking and any failure is logged but does not
+        // affect the enrollment transaction that is already committed.
+        if (request.status() == EnrollmentStatus.COMPLETED) {
+            certificateWebhookClient.notifyEnrollmentCompleted(
+                    saved.getStudent().getId(),
+                    saved.getCourse().getId(),
+                    TenantContext.current().map(tenant -> tenant.slug()).orElse(null));
+        }
+
         return enrollmentMapper.toResponse(saved);
     }
 }

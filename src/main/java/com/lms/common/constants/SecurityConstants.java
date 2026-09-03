@@ -12,12 +12,16 @@ public final class SecurityConstants {
     public static final String CLAIM_ROLES = "roles";
     public static final String CLAIM_PERMISSIONS = "permissions";
     public static final String CLAIM_TOKEN_TYPE = "typ";
+    /** Tenant selected during authentication. Absent only for legacy single-tenant tokens. */
+    public static final String CLAIM_TENANT_ID = "tid";
+    public static final String CLAIM_PLATFORM_ADMIN_ID = "pid";
 
     /**
      * Only the access token is a JWT. The refresh token is opaque random
      * material whose digest lives in {@code user_session}.
      */
     public static final String TOKEN_TYPE_ACCESS = "access";
+    public static final String TOKEN_TYPE_PLATFORM_ACCESS = "platform_access";
 
     public static final String ROLE_PREFIX = "ROLE_";
 

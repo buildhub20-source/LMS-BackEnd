@@ -135,6 +135,37 @@ lms:
       bucket: ${R2_BUCKET:}
       public-url: ${R2_PUBLIC_URL:}
 
+  # Internal service-to-service API
+  internal:
+    service-key: ${SERVICE_KEY_SECRET:change-me-in-production}
+
+  # Certificate microservice integration
+  certificate-service:
+    base-url: ${CERT_SERVICE_URL:http://localhost:8081}
+    enabled: ${CERT_SERVICE_ENABLED:false}
+    timeout-ms: ${CERT_SERVICE_TIMEOUT_MS:3000}
+
+  # Global control plane. Tenant data is held in a separate cloud database;
+  # this database contains only the tenant registry and global administrators.
+  platform:
+    enabled: ${PLATFORM_ENABLED:false}
+    tenant-resolution-required: ${TENANT_RESOLUTION_REQUIRED:false}
+    tenant-header: ${TENANT_HEADER:X-Tenant-Slug}
+    base-domain: ${TENANT_BASE_DOMAIN:}
+    credential-encryption-key: ${TENANT_CREDENTIAL_ENCRYPTION_KEY:}
+    global-admin:
+      enabled: ${PLATFORM_ADMIN_ENABLED:false}
+      email: ${PLATFORM_ADMIN_EMAIL:}
+      password: ${PLATFORM_ADMIN_PASSWORD:}
+      name: ${PLATFORM_ADMIN_NAME:Platform Administrator}
+    provisioning:
+      provider: ${TENANT_PROVISIONING_PROVIDER:SUPABASE}
+      supabase:
+        access-token: ${SUPABASE_ACCESS_TOKEN:}
+        organization-slug: ${SUPABASE_ORGANIZATION_SLUG:}
+        region: ${SUPABASE_TENANT_REGION:ap-southeast-1}
+        instance-size: ${SUPABASE_TENANT_INSTANCE_SIZE:}
+
 logging:
   level:
     com.lms: ${LOG_LEVEL_APP:INFO}

@@ -3,6 +3,7 @@ package com.lms.security.jwt;
 import com.lms.common.constants.SecurityConstants;
 import com.lms.common.exception.InvalidTokenException;
 import com.lms.security.authentication.LmsUserDetails;
+import com.lms.platform.runtime.TenantContext;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -43,6 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 Claims claims = jwtService.parseAccessToken(token);
+                java.util.UUID tokenTenantId = jwtService.tenantIdOrNull(claims);
+                java.util.UUID requestTenantId = TenantContext.current().map(tenant -> tenant.tenantId()).orElse(null);
+                if (!java.util.Objects.equals(tokenTenantId, requestTenantId)) {
+                    throw new InvalidTokenException("Token is not valid for the selected tenant");
+                }
 
                 LmsUserDetails principal = LmsUserDetails.fromClaims(
                         jwtService.userId(claims),

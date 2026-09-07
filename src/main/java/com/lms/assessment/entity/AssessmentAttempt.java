@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import jakarta.persistence.FetchType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -79,6 +80,14 @@ public class AssessmentAttempt {
     /** Populated after grading (Phase 2+). Null until scored. */
     @Column(name = "score")
     private Integer score;
+
+    /**
+     * Prevents concurrent graders from silently overwriting each other's
+     * changes to the same attempt.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     /** Cloudflare R2 public or base URL for the screen recording. */
     @Column(name = "recording_url", length = 1024)

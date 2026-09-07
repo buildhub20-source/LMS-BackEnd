@@ -8,6 +8,8 @@ import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentAttempt;
 import com.lms.assessment.entity.AssessmentStatus;
 import com.lms.assessment.entity.AttemptStatus;
+import com.lms.assessment.entity.AssessmentQuestion;
+import com.lms.assessment.entity.Question;
 import com.lms.assessment.entity.Submission;
 import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
@@ -21,8 +23,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +80,60 @@ class StudentAssessmentServiceTest {
                 .expiresAt(Instant.now().plus(60, ChronoUnit.MINUTES))
                 .status(AttemptStatus.IN_PROGRESS)
                 .build();
+    }
+
+    @Nested
+    @DisplayName("listPublished()")
+    class ListPublished {
+
+        @Test
+        @DisplayName("loads question counts for the entire page in one grouped query")
+        void batchLoadsQuestionCounts() {
+            Assessment first = publishedAssessment();
+            Assessment second = Assessment.builder()
+                    .id(UUID.randomUUID()).title("Spring").status(AssessmentStatus.PUBLISHED).build();
+            PageRequest pageRequest = PageRequest.of(0, 20);
+
+            when(assessmentRepository.findByStatusOrderByCreatedAtDesc(AssessmentStatus.PUBLISHED, pageRequest))
+                    .thenReturn(new PageImpl<>(List.of(first, second), pageRequest, 2));
+            when(assessmentQuestionRepository.countByAssessmentIds(List.of(assessmentId, second.getId())))
+                    .thenReturn(List.of(new Object[] { assessmentId, 3L }, new Object[] { second.getId(), 1L }));
+            when(assessmentMapper.toSummaryResponse(any(), org.mockito.ArgumentMatchers.anyLong()))
+                    .thenAnswer(invocation -> new com.lms.assessment.dto.response.AssessmentSummaryResponse(
+                            invocation.getArgument(0, Assessment.class).getId(), "summary", 0, 0, 0,
+                            AssessmentStatus.PUBLISHED, null, null, null, invocation.getArgument(1, Long.class)));
+
+            service.listPublished(pageRequest);
+
+            verify(assessmentQuestionRepository).countByAssessmentIds(List.of(assessmentId, second.getId()));
+            verify(assessmentQuestionRepository, never()).countByAssessmentId(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("getStudentAttemptHistory()")
+    class AttemptHistory {
+
+        @Test
+        @DisplayName("returns a bounded page rather than loading every historical attempt")
+        void returnsPagedHistory() {
+            Assessment assessment = publishedAssessment();
+            assessment.setTotalMarks(100);
+            AssessmentAttempt attempt = activeAttempt(assessment);
+            attempt.setScore(80);
+            PageRequest pageRequest = PageRequest.of(0, 20);
+
+            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(
+                    assessmentId, studentId, pageRequest))
+                    .thenReturn(new PageImpl<>(List.of(attempt), pageRequest, 25));
+
+            var response = service.getStudentAttemptHistory(assessmentId, studentId, pageRequest);
+
+            assertThat(response.getContent()).hasSize(1);
+            assertThat(response.getTotalElements()).isEqualTo(25);
+            assertThat(response.getSize()).isEqualTo(20);
+        }
     }
 
     @Nested
@@ -179,6 +239,29 @@ class StudentAssessmentServiceTest {
 
             assertThat(res.status()).isEqualTo(AttemptStatus.SUBMITTED);
             verify(attemptRepository).save(attempt);
+        }
+
+        @Test
+        @DisplayName("persists missing question submissions through one batch save")
+        void batchesBlankSubmissions() {
+            Assessment assessment = publishedAssessment();
+            AssessmentAttempt attempt = activeAttempt(assessment);
+            Question question = Question.builder().id(questionId).title("Question").build();
+            AssessmentQuestion assessmentQuestion = AssessmentQuestion.builder()
+                    .id(UUID.randomUUID()).assessment(assessment).question(question).build();
+
+            when(attemptRepository.findByIdAndStudentId(attemptId, studentId)).thenReturn(Optional.of(attempt));
+            when(submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId)).thenReturn(List.of());
+            when(assessmentQuestionRepository.findByAssessmentIdOrderByQuestionOrderAsc(assessmentId))
+                    .thenReturn(List.of(assessmentQuestion));
+            when(testCaseRepository.findByQuestionIdAndSampleTrueOrderByIdAsc(questionId)).thenReturn(List.of());
+
+            service.submitAttempt(attemptId, studentId);
+
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<java.util.List<Submission>> savedSubmissions = ArgumentCaptor.forClass(java.util.List.class);
+            verify(submissionRepository).saveAll(savedSubmissions.capture());
+            assertThat(savedSubmissions.getValue()).hasSize(1);
         }
     }
 }

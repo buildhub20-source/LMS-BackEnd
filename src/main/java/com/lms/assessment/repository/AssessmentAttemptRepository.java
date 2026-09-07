@@ -24,10 +24,4 @@ public interface AssessmentAttemptRepository extends JpaRepository<AssessmentAtt
 
     List<AssessmentAttempt> findByStudentIdAndStatusOrderByStartedAtDesc(
             UUID studentId, AttemptStatus status);
-
-    /** Fetch all attempts for a specific student on a specific assessment (used by retest). */
-    List<AssessmentAttempt> findByAssessmentIdAndStudentId(UUID assessmentId, UUID studentId);
-
-    /** Delete all attempts for a student on an assessment (used by retest, after clearing submissions). */
-    void deleteByAssessmentIdAndStudentId(UUID assessmentId, UUID studentId);
 }

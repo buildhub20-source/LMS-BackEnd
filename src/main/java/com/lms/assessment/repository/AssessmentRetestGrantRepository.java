@@ -10,7 +10,4 @@ public interface AssessmentRetestGrantRepository extends JpaRepository<Assessmen
 
     /** Find the grant row for a specific student on a specific assessment. */
     Optional<AssessmentRetestGrant> findByAssessmentIdAndStudentId(UUID assessmentId, UUID studentId);
-
-    /** Delete a grant row (used after extra_attempts reaches 0). */
-    void deleteByAssessmentIdAndStudentId(UUID assessmentId, UUID studentId);
 }

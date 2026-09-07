@@ -68,5 +68,20 @@ public interface AdminAssessmentService {
      * Get statistical analytics and student performance breakdowns for an assessment.
      */
     com.lms.assessment.dto.response.AssessmentAnalyticsResponse getAnalytics(UUID id);
+
+    /**
+     * Grant a student one additional attempt on a given assessment, without touching
+     * their existing {@link com.lms.assessment.entity.AssessmentAttempt} history.
+     *
+     * <p>Internally an {@link com.lms.assessment.entity.AssessmentRetestGrant} row is
+     * upserted: if a grant already exists its {@code extraAttempts} counter is
+     * incremented by 1; otherwise a new grant with {@code extraAttempts = 1} is
+     * created. When the student next calls {@code startAttempt}, the service detects
+     * the grant, consumes one slot, and allows the new attempt.</p>
+     *
+     * @param assessmentId the target assessment
+     * @param studentId    the student who receives the extra attempt
+     */
+    void retestStudent(UUID assessmentId, UUID studentId);
 }
 

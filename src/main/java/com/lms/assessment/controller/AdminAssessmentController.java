@@ -174,4 +174,24 @@ public class AdminAssessmentController {
     public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
     }
+
+    // ---------------------------------------------------------------
+    // POST /api/v1/admin/assessments/{id}/students/{studentId}/retest
+    // ---------------------------------------------------------------
+
+    @Operation(
+            summary = "Grant a student a retest — adds extra attempt while preserving attempt history",
+            description = "Preserves all prior AssessmentAttempt and Submission records and grants "
+                    + "the student an additional attempt slot to retake the assessment. "
+                    + "Requires ASSESSMENT_UPDATE permission."
+    )
+    @PostMapping("/{id}/students/{studentId}/retest")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<Void>> retestStudent(
+            @PathVariable UUID id,
+            @PathVariable UUID studentId) {
+
+        assessmentService.retestStudent(id, studentId);
+        return ResponseEntity.ok(ApiResponse.message("Retest granted — student has been granted 1 extra attempt"));
+    }
 }

@@ -19,5 +19,20 @@ public record StartAttemptResponse(
         Instant startedAt,
         Instant expiresAt,
         long remainingSeconds,
-        List<StudentQuestionResponse> questions
-) {}
+        List<StudentQuestionResponse> questions,
+        int attemptNumber,
+        int maxAttempts
+) {
+    public StartAttemptResponse(
+            UUID attemptId,
+            UUID assessmentId,
+            String assessmentTitle,
+            int durationMinutes,
+            AttemptStatus status,
+            Instant startedAt,
+            Instant expiresAt,
+            long remainingSeconds,
+            List<StudentQuestionResponse> questions) {
+        this(attemptId, assessmentId, assessmentTitle, durationMinutes, status, startedAt, expiresAt, remainingSeconds, questions, 1, 1);
+    }
+}

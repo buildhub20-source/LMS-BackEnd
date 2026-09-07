@@ -98,23 +98,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return doUpdateEnrollmentStatus(enrollment, request);
     }
 
-    // --- Student Operations ---
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<EnrollmentResponse> getEnrollmentsByStudent(UUID studentId, Pageable pageable) {
-        return enrollmentRepository.findByStudentId(studentId, pageable)
-                .map(enrollmentMapper::toResponse);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public EnrollmentResponse getEnrollmentByIdForStudent(UUID id, UUID studentId) {
-        return enrollmentRepository.findByIdAndStudentId(id, studentId)
-                .map(enrollmentMapper::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found or access denied"));
-    }
-
     // --- Internal Helpers ---
 
     private EnrollmentResponse doCreateEnrollment(CreateEnrollmentRequest request, UUID requiredInstructorId) {

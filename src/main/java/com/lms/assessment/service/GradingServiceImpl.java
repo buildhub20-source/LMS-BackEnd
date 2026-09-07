@@ -13,6 +13,7 @@ import com.lms.assessment.repository.RubricCriterionRepository;
 import com.lms.assessment.repository.RubricScoreRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.common.exception.ResourceNotFoundException;
+import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.response.PageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,18 @@ public class GradingServiceImpl implements GradingService {
         Submission submission = submissionRepository.findById(request.submissionId())
                 .orElseThrow(() -> ResourceNotFoundException.of("Submission", request.submissionId()));
 
+        if (!submission.getAttempt().getId().equals(attemptId)) {
+            throw new BusinessRuleException("Submission does not belong to the assessment attempt being graded");
+        }
+
+        if (!attempt.getAssessment().getCreatedBy().equals(evaluatorId)) {
+            throw new BusinessRuleException("You are not authorized to grade this assessment");
+        }
+
+        if (request.manualScore() != null) {
+            validateScore(request.manualScore(), attempt.getAssessment().getTotalMarks());
+        }
+
         if (request.status() != null) {
             submission.setStatus(request.status());
         } else {
@@ -89,14 +102,22 @@ public class GradingServiceImpl implements GradingService {
             }
         }
 
-        // Recalculate total attempt score
+        // A manual score represents the complete, final score for this attempt.
+        // Re-grading must replace it rather than repeatedly accumulating it.
         int manualScore = request.manualScore() != null ? request.manualScore() : totalRubricScore;
-        int currentAttemptScore = attempt.getScore() != null ? attempt.getScore() : 0;
-        attempt.setScore(currentAttemptScore + manualScore);
+        int totalMarks = attempt.getAssessment().getTotalMarks();
+        validateScore(manualScore, totalMarks);
+        attempt.setScore(manualScore);
         attemptRepository.save(attempt);
 
         log.info("Evaluator {} graded submission {} for attempt {} with score {}", evaluatorId, submission.getId(), attemptId, manualScore);
 
         return studentAssessmentService.getAttemptDetail(attemptId, attempt.getStudentId());
+    }
+
+    private void validateScore(int score, int totalMarks) {
+        if (score < 0 || score > totalMarks) {
+            throw new BusinessRuleException("Score must be between 0 and " + totalMarks);
+        }
     }
 }

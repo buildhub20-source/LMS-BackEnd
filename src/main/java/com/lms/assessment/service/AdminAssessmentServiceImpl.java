@@ -10,13 +10,17 @@ import com.lms.assessment.dto.response.ScoreDistributionBucketDto;
 import com.lms.assessment.dto.response.StudentAssessmentStatDto;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentAttempt;
+import com.lms.assessment.entity.AssessmentRetestGrant;
 import com.lms.assessment.entity.AssessmentStatus;
 import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.entity.RetakePolicy;
+import com.lms.assessment.entity.Submission;
 import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
+import com.lms.assessment.repository.AssessmentRetestGrantRepository;
+import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceNotFoundException;
@@ -53,6 +57,8 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     private final TestCaseRepository testCaseRepository;
     private final AssessmentMapper assessmentMapper;
     private final AssessmentAttemptRepository assessmentAttemptRepository;
+    private final SubmissionRepository submissionRepository;
+    private final AssessmentRetestGrantRepository retestGrantRepository;
     private final UserRepository userRepository;
 
     // ---------------------------------------------------------------
@@ -450,5 +456,61 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                 scoreDistribution,
                 gradeDistribution
         );
+    }
+
+    // ---------------------------------------------------------------
+    // Retest — grants extra attempt without deleting history
+    // ---------------------------------------------------------------
+
+    @Override
+    @Transactional
+    public void retestStudent(UUID assessmentId, UUID studentId) {
+        Assessment assessment = requireAssessment(assessmentId);
+
+        // If the student currently has an IN_PROGRESS attempt, mark it EXPIRED so they start fresh
+        List<AssessmentAttempt> active = assessmentAttemptRepository
+                .findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId)
+                .stream()
+                .filter(a -> a.getStatus() == AttemptStatus.IN_PROGRESS)
+                .toList();
+        for (AssessmentAttempt att : active) {
+            att.setStatus(AttemptStatus.EXPIRED);
+            java.time.Instant now = java.time.Instant.now();
+            att.setSubmittedAt(now);
+            assessmentAttemptRepository.save(att);
+
+            List<Submission> submissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(att.getId());
+            for (Submission sub : submissions) {
+                if ("DRAFT".equals(sub.getStatus())) {
+                    sub.setStatus("SUBMITTED");
+                    sub.setSubmittedAt(now);
+                    submissionRepository.save(sub);
+                }
+            }
+            log.info("Retest: closed abandoned in-progress attempt {} for student {}", att.getId(), studentId);
+        }
+
+        // Upsert: set extra_attempts to 1 to enable 1 retake for the student.
+        Optional<AssessmentRetestGrant> existing =
+                retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
+
+        if (existing.isPresent()) {
+            AssessmentRetestGrant grant = existing.get();
+            grant.setExtraAttempts(1);
+            grant.setGrantedAt(java.time.Instant.now());
+            retestGrantRepository.save(grant);
+            log.info("Retest: ensured 1 retake opportunity for student {} on assessment '{}'",
+                    studentId, assessment.getTitle());
+        } else {
+            AssessmentRetestGrant grant = AssessmentRetestGrant.builder()
+                    .assessment(assessment)
+                    .studentId(studentId)
+                    .extraAttempts(1)
+                    .grantedAt(java.time.Instant.now())
+                    .build();
+            retestGrantRepository.save(grant);
+            log.info("Retest: granted 1 retake opportunity for student {} on assessment '{}'",
+                    studentId, assessment.getTitle());
+        }
     }
 }

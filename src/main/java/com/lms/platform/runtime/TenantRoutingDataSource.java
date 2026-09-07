@@ -13,11 +13,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
+import org.flywaydb.core.Flyway;
+import org.slf4j.LoggerFactory;
+
 /**
  * Routes tenant-scoped JPA work to the tenant database selected for the
  * request. Calls with no tenant context remain in the platform control plane.
  */
 public class TenantRoutingDataSource implements DataSource, AutoCloseable {
+    private static final org.slf4j.Logger log = LoggerFactory.getLogger(TenantRoutingDataSource.class);
     private final DataSource controlPlane;
     private final Map<UUID, HikariDataSource> tenantPools = new ConcurrentHashMap<>();
 
@@ -51,7 +55,31 @@ public class TenantRoutingDataSource implements DataSource, AutoCloseable {
         config.setConnectionTimeout(30_000);
         config.setIdleTimeout(300_000);
         config.setMaxLifetime(900_000);
-        return new HikariDataSource(config);
+        HikariDataSource pool = new HikariDataSource(config);
+
+        migrateTenantDatabase(pool, connection.slug());
+
+        return pool;
+    }
+
+    private void migrateTenantDatabase(DataSource dataSource, String slug) {
+        log.info("Checking/applying Flyway migrations for tenant '{}'...", slug);
+        try {
+            Flyway.configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration")
+                    .schemas("lms")
+                    .defaultSchema("lms")
+                    .createSchemas(true)
+                    .baselineOnMigrate(true)
+                    .outOfOrder(true)
+                    .validateOnMigrate(false)
+                    .load()
+                    .migrate();
+            log.info("Flyway migrations up to date for tenant '{}'", slug);
+        } catch (Exception ex) {
+            log.error("Failed to run Flyway migration for tenant '{}': {}", slug, ex.getMessage(), ex);
+        }
     }
 
     @Override public PrintWriter getLogWriter() throws SQLException { return controlPlane.getLogWriter(); }

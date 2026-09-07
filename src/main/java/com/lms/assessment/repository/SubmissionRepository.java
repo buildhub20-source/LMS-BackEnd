@@ -22,4 +22,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     /** Guards account deletion: submissions hold a RESTRICT key to users. */
     long countByStudentId(UUID studentId);
+
+    /** Delete all submissions for a given attempt (used by retest). */
+    void deleteByAttemptId(UUID attemptId);
+
+    /** Delete all submissions belonging to any of the supplied attempt IDs (used by bulk retest). */
+    void deleteByAttemptIdIn(List<UUID> attemptIds);
 }

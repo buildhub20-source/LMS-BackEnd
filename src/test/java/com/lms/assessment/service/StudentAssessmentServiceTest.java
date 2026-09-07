@@ -13,6 +13,7 @@ import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
+import com.lms.assessment.repository.AssessmentRetestGrantRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
 import com.lms.common.exception.BusinessRuleException;
@@ -45,6 +46,7 @@ class StudentAssessmentServiceTest {
     @Mock private AssessmentQuestionRepository assessmentQuestionRepository;
     @Mock private TestCaseRepository testCaseRepository;
     @Mock private SubmissionRepository submissionRepository;
+    @Mock private AssessmentRetestGrantRepository retestGrantRepository;
     @Mock private AssessmentMapper assessmentMapper;
 
     @InjectMocks
@@ -127,6 +129,36 @@ class StudentAssessmentServiceTest {
             assertThatThrownBy(() -> service.startAttempt(assessmentId, studentId))
                     .isInstanceOf(BusinessRuleException.class)
                     .hasMessageContaining("limit");
+        }
+
+        @Test
+        @DisplayName("allows starting new attempt when previous attempt expired and retest is granted")
+        void allowsNewAttemptWhenExpiredAndRetestGranted() {
+            Assessment assessment = publishedAssessment();
+            assessment.setMaxAttempts(1);
+            AssessmentAttempt expiredAttempt = activeAttempt(assessment);
+            expiredAttempt.setStartedAt(Instant.now().minus(120, ChronoUnit.MINUTES));
+            expiredAttempt.setExpiresAt(Instant.now().minus(60, ChronoUnit.MINUTES));
+            expiredAttempt.setStatus(AttemptStatus.IN_PROGRESS);
+
+            com.lms.assessment.entity.AssessmentRetestGrant grant =
+                    com.lms.assessment.entity.AssessmentRetestGrant.builder()
+                            .assessment(assessment)
+                            .studentId(studentId)
+                            .extraAttempts(1)
+                            .build();
+
+            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId))
+                    .thenReturn(List.of(expiredAttempt));
+            when(retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId))
+                    .thenReturn(Optional.of(grant));
+            when(attemptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            StartAttemptResponse res = service.startAttempt(assessmentId, studentId);
+
+            assertThat(res.status()).isEqualTo(AttemptStatus.IN_PROGRESS);
+            verify(retestGrantRepository).delete(grant);
         }
     }
 

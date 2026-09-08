@@ -21,8 +21,4 @@ public interface EnrollmentService {
     EnrollmentResponse getEnrollmentByIdForInstructor(UUID id, UUID instructorId);
     EnrollmentResponse createEnrollmentForInstructor(UUID instructorId, CreateEnrollmentRequest request);
     EnrollmentResponse updateEnrollmentStatusForInstructor(UUID id, UUID instructorId, UpdateEnrollmentStatusRequest request);
-
-    // --- Student Operations ---
-    Page<EnrollmentResponse> getEnrollmentsByStudent(UUID studentId, Pageable pageable);
-    EnrollmentResponse getEnrollmentByIdForStudent(UUID id, UUID studentId);
 }

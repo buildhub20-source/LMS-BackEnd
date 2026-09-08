@@ -12,6 +12,7 @@ import com.lms.assessment.dto.response.SubmissionResponse;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentAttempt;
 import com.lms.assessment.entity.AssessmentQuestion;
+import com.lms.assessment.entity.AssessmentRetestGrant;
 import com.lms.assessment.entity.AssessmentStatus;
 import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.entity.Question;
@@ -22,6 +23,7 @@ import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
+import com.lms.assessment.repository.AssessmentRetestGrantRepository;
 import com.lms.assessment.repository.RubricScoreRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
@@ -63,6 +65,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     private final TestCaseRepository testCaseRepository;
     private final SubmissionRepository submissionRepository;
     private final RubricScoreRepository rubricScoreRepository;
+    private final AssessmentRetestGrantRepository retestGrantRepository;
     private final UserRepository userRepository;
     private final AssessmentMapper assessmentMapper;
     private final com.lms.common.service.StorageService storageService;
@@ -109,23 +112,51 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         List<AssessmentAttempt> existingAttempts =
                 attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId);
 
-        // If there's an active IN_PROGRESS attempt, return it (resume)
+        // If there's an active IN_PROGRESS attempt, check if it's still running or expired
         Optional<AssessmentAttempt> activeAttempt = existingAttempts.stream()
                 .filter(a -> a.getStatus() == AttemptStatus.IN_PROGRESS)
                 .findFirst();
 
-        AssessmentAttempt attempt;
+        AssessmentAttempt attempt = null;
         if (activeAttempt.isPresent()) {
-            attempt = activeAttempt.get();
-            if (attempt.isExpiredByTime()) {
-                handleAttemptExpiry(attempt);
-                throw new BusinessRuleException("Your previous attempt has expired and was auto-submitted");
+            AssessmentAttempt current = activeAttempt.get();
+            if (!current.isExpiredByTime()) {
+                // Resume ongoing active attempt
+                attempt = current;
+            } else {
+                // Attempt expired: auto-finalize drafts and mark EXPIRED
+                handleAttemptExpiry(current);
+                // attempt remains null so we proceed to check if student can start a new attempt or consume a retest grant
             }
-        } else {
-            // Check max attempts limit
-            if (existingAttempts.size() >= assessment.getMaxAttempts()) {
-                throw new BusinessRuleException(
-                        "Maximum attempt limit (" + assessment.getMaxAttempts() + ") reached for this assessment");
+        }
+
+        int attemptNumber;
+        int maxAttempts;
+
+        if (attempt == null) {
+            // Check max attempts limit (including any admin-granted extra attempts)
+            long usedAttempts = existingAttempts.size();
+            int defaultMax = assessment.getMaxAttempts();
+
+            Optional<AssessmentRetestGrant> grant =
+                    retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
+
+            if (usedAttempts >= defaultMax) {
+                if (grant.isEmpty() || grant.get().getExtraAttempts() <= 0) {
+                    throw new BusinessRuleException(
+                            "Maximum attempt limit (" + defaultMax + ") reached for this assessment");
+                }
+
+                // Consume one grant
+                AssessmentRetestGrant g = grant.get();
+                if (g.getExtraAttempts() == 1) {
+                    // Last grant consumed — remove the row entirely
+                    retestGrantRepository.delete(g);
+                } else {
+                    g.setExtraAttempts(g.getExtraAttempts() - 1);
+                    retestGrantRepository.save(g);
+                }
+                log.info("Student {} consumed a retest grant for assessment {}", studentId, assessmentId);
             }
 
             // Create new attempt
@@ -140,6 +171,16 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
 
             attempt = attemptRepository.save(attempt);
             log.info("Student {} started attempt {} for assessment {}", studentId, attempt.getId(), assessmentId);
+
+            attemptNumber = (int) usedAttempts + 1;
+            int remainingGrants = grant.map(AssessmentRetestGrant::getExtraAttempts).orElse(0);
+            maxAttempts = Math.max(defaultMax, attemptNumber) + remainingGrants;
+        } else {
+            attemptNumber = existingAttempts.size();
+            Optional<AssessmentRetestGrant> grant =
+                    retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
+            int remainingGrants = grant.map(AssessmentRetestGrant::getExtraAttempts).orElse(0);
+            maxAttempts = Math.max(assessment.getMaxAttempts(), attemptNumber) + remainingGrants;
         }
 
         long remaining = Math.max(0, Duration.between(now, attempt.getExpiresAt()).getSeconds());
@@ -154,7 +195,9 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 attempt.getStartedAt(),
                 attempt.getExpiresAt(),
                 remaining,
-                questions
+                questions,
+                attemptNumber,
+                maxAttempts
         );
     }
 
@@ -283,6 +326,11 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         long totalAttempts = attempts.getTotalElements();
         List<AttemptHistoryResponse> history = new ArrayList<>(attempts.getNumberOfElements());
 
+        Optional<AssessmentRetestGrant> grant =
+                retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
+        int extraAttempts = grant.map(AssessmentRetestGrant::getExtraAttempts).orElse(0);
+        boolean canRetake = totalAttempts < assessment.getMaxAttempts() || extraAttempts > 0;
+
         for (int i = 0; i < attempts.getNumberOfElements(); i++) {
             AssessmentAttempt a = attempts.getContent().get(i);
             long attemptNum = totalAttempts - ((long) attempts.getNumber() * attempts.getSize()) - i;
@@ -300,7 +348,9 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                     Math.round(pct * 10.0) / 10.0,
                     a.getStartedAt(),
                     a.getSubmittedAt(),
-                    a.getExpiresAt()
+                    a.getExpiresAt(),
+                    extraAttempts,
+                    canRetake
             ));
         }
 
@@ -373,6 +423,11 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 assessment.getId(), studentId, PageRequest.of(0, 20)).getContent();
         String playbackUrl = getRecordingPlaybackUrl(attempt.getId(), studentId);
 
+        Optional<AssessmentRetestGrant> grant =
+                retestGrantRepository.findByAssessmentIdAndStudentId(assessment.getId(), studentId);
+        int extraAttempts = grant.map(AssessmentRetestGrant::getExtraAttempts).orElse(0);
+        int effectiveMaxAttempts = Math.max(assessment.getMaxAttempts(), allAttempts.size()) + extraAttempts;
+
         return new AssessmentResultReportResponse(
                 attempt.getId(),
                 assessment.getId(),
@@ -386,7 +441,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 passed,
                 assessment.getRetakePolicy() != null ? assessment.getRetakePolicy().name() : "BEST_SCORE",
                 allAttempts.size(),
-                assessment.getMaxAttempts(),
+                effectiveMaxAttempts,
                 timeSpentSeconds,
                 attempt.getStartedAt(),
                 attempt.getSubmittedAt(),

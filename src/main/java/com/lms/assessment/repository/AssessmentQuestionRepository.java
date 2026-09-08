@@ -16,6 +16,15 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
 
     long countByAssessmentId(UUID assessmentId);
 
+    /** Returns one question count per assessment instead of issuing one count query per row. */
+    @Query("""
+            SELECT aq.assessment.id, COUNT(aq)
+            FROM AssessmentQuestion aq
+            WHERE aq.assessment.id IN :assessmentIds
+            GROUP BY aq.assessment.id
+            """)
+    List<Object[]> countByAssessmentIds(@Param("assessmentIds") List<UUID> assessmentIds);
+
     boolean existsByAssessmentIdAndQuestionId(UUID assessmentId, UUID questionId);
 
     java.util.Optional<AssessmentQuestion> findByAssessmentIdAndQuestionId(UUID assessmentId, UUID questionId);

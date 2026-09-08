@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,7 +29,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @Tag(name = "Student — Assessments & Attempts")
@@ -89,9 +89,12 @@ public class StudentAssessmentController {
     @Operation(summary = "Get attempt history for an assessment")
     @GetMapping("/{assessmentId}/attempts")
     @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
-    public ResponseEntity<ApiResponse<List<AttemptHistoryResponse>>> getAttemptHistory(@PathVariable UUID assessmentId) {
+    public ResponseEntity<ApiResponse<PageResponse<AttemptHistoryResponse>>> getAttemptHistory(
+            @PathVariable UUID assessmentId,
+            @PageableDefault(size = 20) Pageable pageable) {
         LmsUserDetails principal = AuthenticationService.requirePrincipal();
-        List<AttemptHistoryResponse> response = studentAssessmentService.getStudentAttemptHistory(assessmentId, principal.getUserId());
+        PageResponse<AttemptHistoryResponse> response =
+                studentAssessmentService.getStudentAttemptHistory(assessmentId, principal.getUserId(), pageable);
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 

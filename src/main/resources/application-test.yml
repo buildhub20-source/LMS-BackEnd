@@ -4,7 +4,7 @@ spring:
     # topology. Pinning the tests to `public` instead used to hide a whole class
     # of bug: every migration from V7 onward is schema-qualified (`lms.courses`)
     # and could not run here at all.
-    url: jdbc:h2:mem:lms;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS lms
+    url: "jdbc:h2:mem:lms;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS lms\\;CREATE SCHEMA IF NOT EXISTS platform"
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
@@ -20,6 +20,16 @@ spring:
     default-schema: lms
 
 lms:
+  bootstrap:
+    admin:
+      enabled: false
+  # Integration tests exercise tenant-local authentication against H2. Never
+  # inherit a developer's control-plane settings from a local .env file.
+  platform:
+    enabled: false
+    tenant-resolution-required: false
+    global-admin:
+      enabled: false
   security:
     jwt:
       secret: test-secret-key-used-only-by-the-test-suite-0123456789

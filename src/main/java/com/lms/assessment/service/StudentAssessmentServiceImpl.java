@@ -35,6 +35,7 @@ import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,10 +75,16 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         Page<Assessment> page =
                 assessmentRepository.findByStatusOrderByCreatedAtDesc(AssessmentStatus.PUBLISHED, pageable);
 
+        Map<UUID, Long> questionCounts = new HashMap<>();
+        if (!page.isEmpty()) {
+            assessmentQuestionRepository.countByAssessmentIds(page.stream().map(Assessment::getId).toList())
+                    .forEach(row -> questionCounts.put((UUID) row[0], (Long) row[1]));
+        }
+
         return PageResponse.from(page, assessment ->
                 assessmentMapper.toSummaryResponse(
                         assessment,
-                        assessmentQuestionRepository.countByAssessmentId(assessment.getId())
+                        questionCounts.getOrDefault(assessment.getId(), 0L)
                 )
         );
     }
@@ -249,16 +257,21 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 .collect(Collectors.toMap(Submission::getQuestionId, s -> s, (a, b) -> a));
 
         // Update all draft submissions to SUBMITTED
+        List<Submission> changedSubmissions = new ArrayList<>();
         for (Submission sub : existingSubmissions) {
             if ("DRAFT".equals(sub.getStatus())) {
                 sub.setStatus("SUBMITTED");
                 sub.setSubmittedAt(now);
-                submissionRepository.save(sub);
+                changedSubmissions.add(sub);
             }
+        }
+        if (!changedSubmissions.isEmpty()) {
+            submissionRepository.saveAll(changedSubmissions);
         }
 
         // Ensure any questions without a submission record also get a SUBMITTED entry
         List<AssessmentQuestion> aqList = assessmentQuestionRepository.findByAssessmentIdOrderByQuestionOrderAsc(attempt.getAssessment().getId());
+        List<Submission> blankSubmissions = new ArrayList<>();
         for (AssessmentQuestion aq : aqList) {
             if (!submissionByQuestion.containsKey(aq.getQuestion().getId())) {
                 Submission blankSub = Submission.builder()
@@ -270,8 +283,11 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                         .status("SUBMITTED")
                         .submittedAt(now)
                         .build();
-                submissionRepository.save(blankSub);
+                blankSubmissions.add(blankSub);
             }
+        }
+        if (!blankSubmissions.isEmpty()) {
+            submissionRepository.saveAll(blankSubmissions);
         }
 
         List<Submission> allSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
@@ -294,26 +310,30 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     }
 
     @Override
-    public List<AttemptHistoryResponse> getStudentAttemptHistory(UUID assessmentId, UUID studentId) {
+    public PageResponse<AttemptHistoryResponse> getStudentAttemptHistory(
+            UUID assessmentId, UUID studentId, Pageable pageable) {
         Assessment assessment = assessmentRepository.findById(assessmentId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Assessment", assessmentId));
 
-        List<AssessmentAttempt> attempts =
-                attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId);
+        Pageable boundedPageable = PageRequest.of(
+                Math.max(0, pageable.getPageNumber()),
+                Math.min(Math.max(1, pageable.getPageSize()), 100),
+                pageable.getSort());
 
-        int totalAttempts = attempts.size();
-        List<AttemptHistoryResponse> history = new ArrayList<>();
+        Page<AssessmentAttempt> attempts = attemptRepository
+                .findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId, boundedPageable);
+
+        long totalAttempts = attempts.getTotalElements();
+        List<AttemptHistoryResponse> history = new ArrayList<>(attempts.getNumberOfElements());
 
         Optional<AssessmentRetestGrant> grant =
                 retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
         int extraAttempts = grant.map(AssessmentRetestGrant::getExtraAttempts).orElse(0);
-        // canRetake is true if the student has remaining granted extra attempts,
-        // OR hasn't used up all default attempts yet.
-        boolean canRetake = (totalAttempts < assessment.getMaxAttempts()) || (extraAttempts > 0);
+        boolean canRetake = totalAttempts < assessment.getMaxAttempts() || extraAttempts > 0;
 
-        for (int i = 0; i < attempts.size(); i++) {
-            AssessmentAttempt a = attempts.get(i);
-            int attemptNum = totalAttempts - i;
+        for (int i = 0; i < attempts.getNumberOfElements(); i++) {
+            AssessmentAttempt a = attempts.getContent().get(i);
+            long attemptNum = totalAttempts - ((long) attempts.getNumber() * attempts.getSize()) - i;
             int score = a.getScore() != null ? a.getScore() : 0;
             double pct = assessment.getTotalMarks() > 0 ? (score * 100.0 / assessment.getTotalMarks()) : 0.0;
 
@@ -321,7 +341,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                     a.getId(),
                     assessment.getId(),
                     assessment.getTitle(),
-                    attemptNum,
+                    Math.toIntExact(attemptNum),
                     a.getStatus(),
                     a.getScore(),
                     assessment.getTotalMarks(),
@@ -334,7 +354,8 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
             ));
         }
 
-        return history;
+        return new PageResponse<>(history, attempts.getNumber(), attempts.getSize(), totalAttempts,
+                attempts.getTotalPages(), attempts.isLast());
     }
 
     @Override
@@ -398,7 +419,8 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
             ));
         }
 
-        List<AttemptHistoryResponse> history = getStudentAttemptHistory(assessment.getId(), studentId);
+        List<AttemptHistoryResponse> history = getStudentAttemptHistory(
+                assessment.getId(), studentId, PageRequest.of(0, 20)).getContent();
         String playbackUrl = getRecordingPlaybackUrl(attempt.getId(), studentId);
 
         Optional<AssessmentRetestGrant> grant =

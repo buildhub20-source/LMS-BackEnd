@@ -55,7 +55,8 @@ public class GradingServiceImpl implements GradingService {
 
     @Override
     @Transactional
-    public AttemptDetailResponse gradeSubmission(UUID attemptId, GradeSubmissionRequest request, UUID evaluatorId) {
+    public AttemptDetailResponse gradeSubmission(UUID attemptId, GradeSubmissionRequest request,
+                                                 UUID evaluatorId, boolean mayGradeAnyAssessment) {
         AssessmentAttempt attempt = attemptRepository.findById(attemptId)
                 .orElseThrow(() -> ResourceNotFoundException.of("AssessmentAttempt", attemptId));
 

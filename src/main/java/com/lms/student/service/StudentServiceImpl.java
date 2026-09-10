@@ -6,6 +6,7 @@ import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.PageResponse;
+import com.lms.common.util.LikePatternUtils;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.common.service.StorageService;
@@ -350,12 +351,12 @@ public class StudentServiceImpl implements StudentService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (StringUtils.hasText(search)) {
-                String pattern = "%" + search.trim().toLowerCase() + "%";
+                String pattern = LikePatternUtils.containsIgnoreCase(search);
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("registrationNo")), pattern),
-                        cb.like(cb.lower(root.get("user").get("name")), pattern),
-                        cb.like(cb.lower(root.get("user").get("email")), pattern),
-                        cb.like(cb.lower(root.get("employer")), pattern)));
+                        cb.like(cb.lower(root.get("registrationNo")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("user").get("name")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("user").get("email")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("employer")), pattern, '\\')));
             }
 
             if (batchId != null || enrolmentStatus != null) {

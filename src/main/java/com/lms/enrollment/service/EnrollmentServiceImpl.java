@@ -3,7 +3,6 @@ package com.lms.enrollment.service;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
-import com.lms.common.client.CertificateWebhookClient;
 import com.lms.course.entity.Course;
 import com.lms.course.entity.CourseStatus;
 import com.lms.course.repository.CourseRepository;
@@ -12,6 +11,7 @@ import com.lms.enrollment.dto.request.UpdateEnrollmentStatusRequest;
 import com.lms.enrollment.dto.response.EnrollmentResponse;
 import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.entity.EnrollmentStatus;
+import com.lms.enrollment.event.EnrollmentCompletedEvent;
 import com.lms.enrollment.mapper.EnrollmentMapper;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.platform.runtime.TenantContext;
@@ -20,6 +20,7 @@ import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final EnrollmentMapper enrollmentMapper;
-    private final CertificateWebhookClient certificateWebhookClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     // --- Admin Operations ---
 
@@ -131,29 +132,43 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     private EnrollmentResponse doUpdateEnrollmentStatus(Enrollment enrollment, UpdateEnrollmentStatusRequest request) {
-        // Prevent arbitrary changes
-        if (enrollment.getStatus() == EnrollmentStatus.CANCELLED) {
-            throw new BusinessRuleException("Cannot modify a CANCELLED enrollment");
+        EnrollmentStatus current = enrollment.getStatus();
+        EnrollmentStatus target = request.status();
+        if (current == target) {
+            return enrollmentMapper.toResponse(enrollment);
         }
+        validateStatusTransition(current, target);
 
-        enrollment.setStatus(request.status());
+        enrollment.setStatus(target);
 
-        if (request.status() == EnrollmentStatus.COMPLETED && enrollment.getCompletedAt() == null) {
+        if (target == EnrollmentStatus.COMPLETED) {
             enrollment.setCompletedAt(Instant.now());
         }
 
         Enrollment saved = enrollmentRepository.save(enrollment);
 
-        // Notify the certificate service asynchronously (fire-and-forget).
-        // The call is non-blocking and any failure is logged but does not
-        // affect the enrollment transaction that is already committed.
-        if (request.status() == EnrollmentStatus.COMPLETED) {
-            certificateWebhookClient.notifyEnrollmentCompleted(
+        // Publishing inside the transaction lets the listener run only after
+        // a successful commit; no certificate is issued for a rolled-back update.
+        if (target == EnrollmentStatus.COMPLETED) {
+            eventPublisher.publishEvent(new EnrollmentCompletedEvent(
                     saved.getStudent().getId(),
                     saved.getCourse().getId(),
-                    TenantContext.current().map(tenant -> tenant.slug()).orElse(null));
+                    TenantContext.current().map(tenant -> tenant.slug()).orElse(null)));
         }
 
         return enrollmentMapper.toResponse(saved);
+    }
+
+    private void validateStatusTransition(EnrollmentStatus current, EnrollmentStatus target) {
+        boolean allowed = switch (current) {
+            case ACTIVE -> target == EnrollmentStatus.SUSPENDED
+                    || target == EnrollmentStatus.CANCELLED
+                    || target == EnrollmentStatus.COMPLETED;
+            case SUSPENDED -> target == EnrollmentStatus.ACTIVE || target == EnrollmentStatus.CANCELLED;
+            case COMPLETED, CANCELLED -> false;
+        };
+        if (!allowed) {
+            throw new BusinessRuleException("Invalid enrollment status transition: " + current + " -> " + target);
+        }
     }
 }

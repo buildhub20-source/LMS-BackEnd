@@ -47,7 +47,10 @@ public record CreateQuestionRequest(
         Integer memoryLimitMb,
 
         @Valid
-        List<CreateTestCaseRequest> testCases
+        List<CreateTestCaseRequest> testCases,
+
+        @Valid
+        List<CreateQuestionOptionRequest> options
 ) {
     public CreateQuestionRequest withDefaults() {
         return new CreateQuestionRequest(
@@ -61,7 +64,8 @@ public record CreateQuestionRequest(
                 marks != null ? marks : 10,
                 timeLimitMs != null ? timeLimitMs : 2000,
                 memoryLimitMb != null ? memoryLimitMb : 256,
-                testCases != null ? testCases : List.of()
+                testCases != null ? testCases : List.of(),
+                options != null ? options : List.of()
         );
     }
 }

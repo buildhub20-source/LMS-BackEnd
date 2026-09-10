@@ -18,7 +18,8 @@ public record AttemptHistoryResponse(
         Instant submittedAt,
         Instant expiresAt,
         int extraAttempts,
-        boolean canRetake
+        boolean canRetake,
+        boolean showResultAnalytics
 ) {
     public AttemptHistoryResponse(
             UUID attemptId,
@@ -33,6 +34,6 @@ public record AttemptHistoryResponse(
             Instant submittedAt,
             Instant expiresAt
     ) {
-        this(attemptId, assessmentId, assessmentTitle, attemptNumber, status, score, totalMarks, percentage, startedAt, submittedAt, expiresAt, 0, false);
+        this(attemptId, assessmentId, assessmentTitle, attemptNumber, status, score, totalMarks, percentage, startedAt, submittedAt, expiresAt, 0, false, true);
     }
 }

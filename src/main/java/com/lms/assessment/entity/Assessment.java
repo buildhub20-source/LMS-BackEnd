@@ -73,6 +73,10 @@ public class Assessment extends Timestamped {
     @Column(name = "retake_policy", nullable = false, length = 30)
     private RetakePolicy retakePolicy = RetakePolicy.BEST_SCORE;
 
+    @Builder.Default
+    @Column(name = "show_result_analytics", nullable = false)
+    private boolean showResultAnalytics = true;
+
     /** Optional window: if null, the assessment is open-ended once published. */
     @Column(name = "start_time")
     private Instant startTime;

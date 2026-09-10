@@ -33,8 +33,40 @@ public interface AssessmentQuestionRepository extends JpaRepository<AssessmentQu
     List<AssessmentQuestion> findByQuestionId(UUID questionId);
 
     /**
+     * Returns the IDs of all coding questions in an assessment that do NOT have
+     * at least one test case.
+     */
+    @Query("""
+            SELECT aq.question.id
+            FROM AssessmentQuestion aq
+            WHERE aq.assessment.id = :assessmentId
+              AND aq.question.questionType = com.lms.assessment.entity.QuestionType.CODING
+              AND NOT EXISTS (
+                  SELECT 1 FROM TestCase tc WHERE tc.question.id = aq.question.id
+              )
+            """)
+    List<UUID> findCodingQuestionIdsWithoutTestCases(@Param("assessmentId") UUID assessmentId);
+
+    /**
+     * Returns the IDs of all MCQ questions in an assessment that are invalid
+     * (fewer than 2 options or 0 correct options).
+     */
+    @Query("""
+            SELECT aq.question.id
+            FROM AssessmentQuestion aq
+            WHERE aq.assessment.id = :assessmentId
+              AND aq.question.questionType = com.lms.assessment.entity.QuestionType.MULTIPLE_CHOICE
+              AND (
+                  (SELECT COUNT(qo) FROM QuestionOption qo WHERE qo.question.id = aq.question.id) < 2
+                  OR
+                  (SELECT COUNT(qo) FROM QuestionOption qo WHERE qo.question.id = aq.question.id AND qo.correct = true) < 1
+              )
+            """)
+    List<UUID> findInvalidMcqQuestionIds(@Param("assessmentId") UUID assessmentId);
+
+    /**
      * Returns the IDs of all questions in an assessment that have at least one
-     * test case, to support the publish validation.
+     * test case, to support legacy publish validation.
      */
     @Query("""
             SELECT aq.question.id

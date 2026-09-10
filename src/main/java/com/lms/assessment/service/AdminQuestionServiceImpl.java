@@ -1,17 +1,22 @@
 package com.lms.assessment.service;
 
+import com.lms.assessment.dto.request.CreateQuestionOptionRequest;
 import com.lms.assessment.dto.request.CreateQuestionRequest;
 import com.lms.assessment.dto.request.CreateTestCaseRequest;
 import com.lms.assessment.dto.request.UpdateQuestionRequest;
+import com.lms.assessment.dto.response.QuestionOptionResponse;
 import com.lms.assessment.dto.response.QuestionResponse;
 import com.lms.assessment.dto.response.TestCaseResponse;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentQuestion;
 import com.lms.assessment.entity.Question;
+import com.lms.assessment.entity.QuestionOption;
+import com.lms.assessment.entity.QuestionType;
 import com.lms.assessment.entity.TestCase;
 import com.lms.assessment.mapper.QuestionMapper;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
+import com.lms.assessment.repository.QuestionOptionRepository;
 import com.lms.assessment.repository.QuestionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
 import com.lms.common.exception.BusinessRuleException;
@@ -35,6 +40,7 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
     private final AssessmentRepository assessmentRepository;
     private final QuestionRepository questionRepository;
     private final TestCaseRepository testCaseRepository;
+    private final QuestionOptionRepository questionOptionRepository;
     private final AssessmentQuestionRepository assessmentQuestionRepository;
     private final QuestionMapper questionMapper;
 
@@ -62,8 +68,22 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
 
         Question savedQuestion = questionRepository.save(question);
 
-        // 2. Save Test Cases
-        List<TestCase> testCases = saveTestCases(savedQuestion, req.testCases());
+        // 2. Save Test Cases or Options based on question type
+        List<TestCase> testCases = List.of();
+        List<QuestionOption> options = List.of();
+
+        if (req.questionType() == QuestionType.MULTIPLE_CHOICE) {
+            if (req.options() == null || req.options().size() < 2) {
+                throw new BusinessRuleException("Multiple choice questions must have at least 2 options");
+            }
+            boolean hasCorrect = req.options().stream().anyMatch(CreateQuestionOptionRequest::isCorrect);
+            if (!hasCorrect) {
+                throw new BusinessRuleException("Multiple choice questions must have at least 1 correct option marked");
+            }
+            options = saveQuestionOptions(savedQuestion, req.options());
+        } else {
+            testCases = saveTestCases(savedQuestion, req.testCases());
+        }
 
         // 3. Create AssessmentQuestion junction
         int nextOrder = (int) assessmentQuestionRepository.countByAssessmentId(assessmentId);
@@ -82,7 +102,8 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
         log.info("Admin added question {} to assessment {}", savedQuestion.getId(), assessmentId);
 
         List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(testCases);
-        return questionMapper.toQuestionResponse(savedQuestion, nextOrder, req.marks(), tcResponses);
+        List<QuestionOptionResponse> optResponses = questionMapper.toQuestionOptionResponseList(options);
+        return questionMapper.toQuestionResponse(savedQuestion, nextOrder, req.marks(), tcResponses, optResponses);
     }
 
     @Override
@@ -97,7 +118,9 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
             Question q = aq.getQuestion();
             List<TestCase> tcs = testCaseRepository.findByQuestionIdOrderByIdAsc(q.getId());
             List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(tcs);
-            result.add(questionMapper.toQuestionResponse(q, aq.getQuestionOrder(), aq.getMarks(), tcResponses));
+            List<QuestionOption> opts = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(q.getId());
+            UUID sectionId = aq.getSection() != null ? aq.getSection().getId() : null;
+            result.add(questionMapper.toQuestionResponse(q, aq.getQuestionOrder(), aq.getMarks(), sectionId, tcResponses, optResponses));
         }
 
         return result;
@@ -151,10 +174,9 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
             }
         }
 
-        // Update test cases if provided
+        // Update test cases if provided (for coding questions)
         List<TestCase> testCases;
         if (request.testCases() != null) {
-            // Delete existing test cases and re-create
             List<TestCase> existing = testCaseRepository.findByQuestionIdOrderByIdAsc(questionId);
             testCaseRepository.deleteAll(existing);
             testCases = saveTestCases(saved, request.testCases());
@@ -162,13 +184,35 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
             testCases = testCaseRepository.findByQuestionIdOrderByIdAsc(questionId);
         }
 
+        // Update options if provided (for MCQ questions)
+        List<QuestionOption> options;
+        if (request.options() != null) {
+            if (saved.getQuestionType() == QuestionType.MULTIPLE_CHOICE) {
+                if (request.options().size() < 2) {
+                    throw new BusinessRuleException("Multiple choice questions must have at least 2 options");
+                }
+                boolean hasCorrect = request.options().stream().anyMatch(CreateQuestionOptionRequest::isCorrect);
+                if (!hasCorrect) {
+                    throw new BusinessRuleException("Multiple choice questions must have at least 1 correct option marked");
+                }
+            }
+            List<QuestionOption> existingOpts = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
+            questionOptionRepository.deleteAll(existingOpts);
+            options = saveQuestionOptions(saved, request.options());
+        } else {
+            options = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
+        }
+
         // Resolve the question order from the first junction found (may be in multiple assessments)
         List<AssessmentQuestion> allJunctions = assessmentQuestionRepository.findByQuestionId(questionId);
         int resolvedOrder = allJunctions.isEmpty() ? 0 : allJunctions.get(0).getQuestionOrder();
+        UUID resolvedSectionId = (allJunctions.isEmpty() || allJunctions.get(0).getSection() == null)
+                ? null : allJunctions.get(0).getSection().getId();
         int resolvedMarks = saved.getMarks();
 
         List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(testCases);
-        return questionMapper.toQuestionResponse(saved, resolvedOrder, resolvedMarks, tcResponses);
+        List<QuestionOptionResponse> optResponses = questionMapper.toQuestionOptionResponseList(options);
+        return questionMapper.toQuestionResponse(saved, resolvedOrder, resolvedMarks, resolvedSectionId, tcResponses, optResponses);
     }
 
     @Override
@@ -219,6 +263,24 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
                     .weight(tcReq.weight())
                     .build();
             list.add(testCaseRepository.save(tc));
+        }
+        return list;
+    }
+
+    private List<QuestionOption> saveQuestionOptions(Question question, List<CreateQuestionOptionRequest> requests) {
+        List<QuestionOption> list = new ArrayList<>();
+        if (requests == null) return list;
+
+        int idx = 0;
+        for (CreateQuestionOptionRequest optReq : requests) {
+            QuestionOption opt = QuestionOption.builder()
+                    .question(question)
+                    .optionText(optReq.optionText().trim())
+                    .correct(optReq.isCorrect())
+                    .orderIndex(optReq.orderIndex() != null ? optReq.orderIndex() : idx++)
+                    .explanation(optReq.explanation())
+                    .build();
+            list.add(questionOptionRepository.save(opt));
         }
         return list;
     }

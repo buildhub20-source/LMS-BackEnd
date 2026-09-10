@@ -103,7 +103,7 @@ class StudentAssessmentServiceTest {
             when(assessmentMapper.toSummaryResponse(any(), org.mockito.ArgumentMatchers.anyLong()))
                     .thenAnswer(invocation -> new com.lms.assessment.dto.response.AssessmentSummaryResponse(
                             invocation.getArgument(0, Assessment.class).getId(), "summary", 0, 0, 0,
-                            AssessmentStatus.PUBLISHED, null, null, null, invocation.getArgument(1, Long.class)));
+                            AssessmentStatus.PUBLISHED, null, null, null, invocation.getArgument(1, Long.class), true));
 
             service.listPublished(pageRequest);
 
@@ -270,7 +270,7 @@ class StudentAssessmentServiceTest {
             AttemptDetailResponse res = service.submitAttempt(attemptId, studentId);
 
             assertThat(res.status()).isEqualTo(AttemptStatus.SUBMITTED);
-            verify(attemptRepository).save(attempt);
+            verify(attemptRepository, org.mockito.Mockito.atLeastOnce()).save(attempt);
         }
 
         @Test

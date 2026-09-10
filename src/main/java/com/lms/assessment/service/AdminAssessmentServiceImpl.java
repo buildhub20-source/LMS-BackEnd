@@ -87,6 +87,7 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                 .retakePolicy(policy)
                 .startTime(req.startTime())
                 .endTime(req.endTime())
+                .showResultAnalytics(req.showResultAnalytics() != null ? req.showResultAnalytics() : true)
                 .status(AssessmentStatus.DRAFT)
                 .createdBy(createdBy)
                 .build();
@@ -158,9 +159,22 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
             assessment.setStartTime(request.startTime());
             assessment.setEndTime(request.endTime());
         }
+        if (request.showResultAnalytics() != null) {
+            assessment.setShowResultAnalytics(request.showResultAnalytics());
+        }
 
         Assessment saved = assessmentRepository.save(assessment);
         log.debug("Admin updated assessment {}", id);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public AssessmentResponse toggleResultAnalytics(UUID id, boolean enabled) {
+        Assessment assessment = requireAssessment(id);
+        assessment.setShowResultAnalytics(enabled);
+        Assessment saved = assessmentRepository.save(assessment);
+        log.info("Assessment {} result analytics visibility updated to: {}", id, enabled);
         return toResponse(saved);
     }
 
@@ -280,13 +294,20 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
                     "Assessment must have at least one question before publishing");
         }
 
-        // 5. Every question must have at least one test case
-        List<UUID> questionsWithTestCases =
-                assessmentQuestionRepository.findQuestionIdsWithTestCases(assessment.getId());
-
-        if (questionsWithTestCases.size() < questionCount) {
+        // 5. Every CODING question must have at least one test case
+        List<UUID> codingWithoutTestCases =
+                assessmentQuestionRepository.findCodingQuestionIdsWithoutTestCases(assessment.getId());
+        if (!codingWithoutTestCases.isEmpty()) {
             throw new BusinessRuleException(
-                    "Every question must have at least one test case before publishing");
+                    "Every coding question must have at least one test case before publishing");
+        }
+
+        // 6. Every MULTIPLE_CHOICE question must have at least 2 options and at least 1 correct option
+        List<UUID> invalidMcqs =
+                assessmentQuestionRepository.findInvalidMcqQuestionIds(assessment.getId());
+        if (!invalidMcqs.isEmpty()) {
+            throw new BusinessRuleException(
+                    "Every multiple choice question must have at least 2 options and at least 1 correct option before publishing");
         }
     }
 

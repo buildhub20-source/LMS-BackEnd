@@ -20,5 +20,6 @@ public record AssessmentSummaryResponse(
         Instant startTime,
         Instant endTime,
         Instant createdAt,
-        long questionCount
+        long questionCount,
+        boolean showResultAnalytics
 ) {}

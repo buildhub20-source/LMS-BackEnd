@@ -9,5 +9,6 @@ package com.lms.assessment.entity;
  * enumerates the known values.
  */
 public enum QuestionType {
-    CODING
+    CODING,
+    MULTIPLE_CHOICE
 }

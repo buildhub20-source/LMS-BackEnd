@@ -1,8 +1,11 @@
 package com.lms.assessment.mapper;
 
+import com.lms.assessment.dto.response.QuestionOptionResponse;
 import com.lms.assessment.dto.response.QuestionResponse;
+import com.lms.assessment.dto.response.StudentQuestionOptionResponse;
 import com.lms.assessment.dto.response.TestCaseResponse;
 import com.lms.assessment.entity.Question;
+import com.lms.assessment.entity.QuestionOption;
 import com.lms.assessment.entity.TestCase;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -15,6 +18,15 @@ public interface QuestionMapper {
     TestCaseResponse toTestCaseResponse(TestCase testCase);
 
     List<TestCaseResponse> toTestCaseResponseList(List<TestCase> testCases);
+
+    @Mapping(source = "correct", target = "isCorrect")
+    QuestionOptionResponse toQuestionOptionResponse(QuestionOption option);
+
+    List<QuestionOptionResponse> toQuestionOptionResponseList(List<QuestionOption> options);
+
+    StudentQuestionOptionResponse toStudentQuestionOptionResponse(QuestionOption option);
+
+    List<StudentQuestionOptionResponse> toStudentQuestionOptionResponseList(List<QuestionOption> options);
 
     @Mapping(source = "question.id",            target = "id")
     @Mapping(source = "question.title",         target = "title")
@@ -33,9 +45,18 @@ public interface QuestionMapper {
     @Mapping(source = "question.createdAt",     target = "createdAt")
     @Mapping(source = "question.updatedAt",     target = "updatedAt")
     @Mapping(source = "testCases",              target = "testCases")
-    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, java.util.UUID sectionId, List<TestCaseResponse> testCases);
+    @Mapping(source = "options",                target = "options")
+    QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, java.util.UUID sectionId, List<TestCaseResponse> testCases, List<QuestionOptionResponse> options);
+
+    default QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, java.util.UUID sectionId, List<TestCaseResponse> testCases) {
+        return toQuestionResponse(question, questionOrder, marks, sectionId, testCases, List.of());
+    }
+
+    default QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases, List<QuestionOptionResponse> options) {
+        return toQuestionResponse(question, questionOrder, marks, (java.util.UUID) null, testCases, options);
+    }
 
     default QuestionResponse toQuestionResponse(Question question, int questionOrder, int marks, List<TestCaseResponse> testCases) {
-        return toQuestionResponse(question, questionOrder, marks, (java.util.UUID) null, testCases);
+        return toQuestionResponse(question, questionOrder, marks, (java.util.UUID) null, testCases, List.of());
     }
 }

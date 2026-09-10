@@ -98,12 +98,12 @@ public class StudentAssessmentController {
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 
-    @Operation(summary = "Get detailed result report for an attempt")
-    @GetMapping("/attempts/{attemptId}/report")
+    @Operation(summary = "Get detailed result report for an attempt or assessment")
+    @GetMapping({"/attempts/{targetId}/report", "/{targetId}/report"})
     @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
-    public ResponseEntity<ApiResponse<AssessmentResultReportResponse>> getResultReport(@PathVariable UUID attemptId) {
+    public ResponseEntity<ApiResponse<AssessmentResultReportResponse>> getResultReport(@PathVariable UUID targetId) {
         LmsUserDetails principal = AuthenticationService.requirePrincipal();
-        AssessmentResultReportResponse response = studentAssessmentService.getStudentResultReport(attemptId, principal.getUserId());
+        AssessmentResultReportResponse response = studentAssessmentService.getStudentResultReport(targetId, principal.getUserId());
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 

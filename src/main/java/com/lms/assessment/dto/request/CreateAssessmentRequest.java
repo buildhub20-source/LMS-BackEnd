@@ -36,7 +36,9 @@ public record CreateAssessmentRequest(
         /** Optional: if null, the assessment window is open-ended once published. */
         Instant startTime,
 
-        Instant endTime
+        Instant endTime,
+
+        Boolean showResultAnalytics
 ) {
     /**
      * Apply defaults for optional fields not provided by the caller.
@@ -51,7 +53,8 @@ public record CreateAssessmentRequest(
                 randomizeQuestions != null ? randomizeQuestions : false,
                 retakePolicy != null ? retakePolicy : "BEST_SCORE",
                 startTime,
-                endTime
+                endTime,
+                showResultAnalytics != null ? showResultAnalytics : true
         );
     }
 }

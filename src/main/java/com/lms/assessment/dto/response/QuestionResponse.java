@@ -27,5 +27,6 @@ public record QuestionResponse(
         UUID sectionId,
         Instant createdAt,
         Instant updatedAt,
-        List<TestCaseResponse> testCases
+        List<TestCaseResponse> testCases,
+        List<QuestionOptionResponse> options
 ) {}

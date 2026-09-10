@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+import com.lms.security.authentication.AuthenticationService;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -64,7 +66,15 @@ public class GradingServiceImpl implements GradingService {
             throw new BusinessRuleException("Submission does not belong to the assessment attempt being graded");
         }
 
-        if (!attempt.getAssessment().getCreatedBy().equals(evaluatorId)) {
+        boolean isCreator = attempt.getAssessment().getCreatedBy().equals(evaluatorId);
+        boolean isAuthorizedRole = AuthenticationService.currentPrincipal()
+                .map(p -> p.getRoles().contains("ADMIN")
+                        || p.getRoles().contains("SUPER_ADMIN")
+                        || p.getRoles().contains("INSTRUCTOR")
+                        || p.getPermissions().contains("ASSESSMENT_UPDATE"))
+                .orElse(false);
+
+        if (!isCreator && !isAuthorizedRole) {
             throw new BusinessRuleException("You are not authorized to grade this assessment");
         }
 

@@ -48,7 +48,10 @@ public class GradingController {
             @Valid @RequestBody GradeSubmissionRequest request) {
 
         LmsUserDetails principal = AuthenticationService.requirePrincipal();
-        AttemptDetailResponse response = gradingService.gradeSubmission(attemptId, request, principal.getUserId());
+        boolean administrator = principal.getRoles().contains("ADMIN")
+                || principal.getRoles().contains("SUPER_ADMIN");
+        AttemptDetailResponse response = gradingService.gradeSubmission(
+                attemptId, request, principal.getUserId(), administrator);
         return ResponseEntity.ok(ApiResponse.of(response, "Submission graded successfully"));
     }
 }

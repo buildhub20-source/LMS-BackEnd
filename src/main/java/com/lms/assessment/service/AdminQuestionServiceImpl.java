@@ -119,6 +119,7 @@ public class AdminQuestionServiceImpl implements AdminQuestionService {
             List<TestCase> tcs = testCaseRepository.findByQuestionIdOrderByIdAsc(q.getId());
             List<TestCaseResponse> tcResponses = questionMapper.toTestCaseResponseList(tcs);
             List<QuestionOption> opts = questionOptionRepository.findByQuestionIdOrderByOrderIndexAsc(q.getId());
+            List<QuestionOptionResponse> optResponses = questionMapper.toQuestionOptionResponseList(opts);
             UUID sectionId = aq.getSection() != null ? aq.getSection().getId() : null;
             result.add(questionMapper.toQuestionResponse(q, aq.getQuestionOrder(), aq.getMarks(), sectionId, tcResponses, optResponses));
         }

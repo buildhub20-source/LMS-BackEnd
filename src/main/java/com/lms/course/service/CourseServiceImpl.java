@@ -4,6 +4,7 @@ import com.lms.common.audit.AuditAction;
 import com.lms.common.audit.AuditService;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceNotFoundException;
+import com.lms.common.util.LikePatternUtils;
 import com.lms.common.response.PageResponse;
 import com.lms.course.dto.request.CreateCourseRequest;
 import com.lms.course.dto.request.RejectCourseRequest;
@@ -16,6 +17,10 @@ import com.lms.course.repository.CourseRepository;
 import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.security.authentication.AuthenticationService;
+import com.lms.security.authentication.LmsUserDetails;
+import com.lms.role.constants.SystemRoles;
+import com.lms.common.exception.ApplicationException;
+import com.lms.common.exception.ErrorCode;
 import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,13 +77,19 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Transactional(readOnly = true)
     public CourseResponse findById(UUID id) {
-        return toResponse(requireCourse(id));
+        Course course = requireCourse(id);
+        assertInstructorOwns(course);
+        return toResponse(course);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<CourseResponse> search(String search, CourseStatus status, Pageable pageable) {
         Specification<Course> spec = buildSpec(search, status);
+        if (isInstructorOnly()) {
+            UUID instructorId = requireCurrentUserId();
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("instructorId"), instructorId));
+        }
         Page<Course> page = courseRepository.findAll(spec, pageable);
         return PageResponse.from(page, this::toResponse);
     }
@@ -86,6 +97,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse update(UUID id, UpdateCourseRequest request) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
 
         if (StringUtils.hasText(request.getTitle()))       course.setTitle(request.getTitle());
         if (StringUtils.hasText(request.getDescription())) course.setDescription(request.getDescription());
@@ -100,6 +112,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public void delete(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         if (course.getStatus() != CourseStatus.DRAFT) {
             throw new BusinessRuleException("Only DRAFT courses can be deleted. Archive published courses instead.");
         }
@@ -113,6 +126,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse publish(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "publish", CourseStatus.DRAFT, CourseStatus.UNPUBLISHED);
         course.setStatus(CourseStatus.PUBLISHED);
         course.setPublishedAt(Instant.now());
@@ -125,6 +139,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse unpublish(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "unpublish", CourseStatus.PUBLISHED);
         course.setStatus(CourseStatus.UNPUBLISHED);
         Course saved = courseRepository.save(course);
@@ -135,6 +150,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse archive(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "archive", CourseStatus.PUBLISHED, CourseStatus.UNPUBLISHED);
         course.setStatus(CourseStatus.ARCHIVED);
         course.setArchivedAt(Instant.now());
@@ -146,6 +162,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse submit(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "submit", CourseStatus.DRAFT);
         course.setStatus(CourseStatus.PENDING_REVIEW);
         course.setRejectionReason(null);
@@ -157,6 +174,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse approve(UUID id) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "approve", CourseStatus.PENDING_REVIEW);
         course.setStatus(CourseStatus.PUBLISHED);
         course.setPublishedAt(Instant.now());
@@ -169,6 +187,7 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public CourseResponse reject(UUID id, RejectCourseRequest request) {
         Course course = requireCourse(id);
+        assertInstructorOwns(course);
         requireStatus(course, "reject", CourseStatus.PENDING_REVIEW);
         course.setStatus(CourseStatus.DRAFT);
         course.setRejectionReason(request != null ? request.getReason() : null);
@@ -203,6 +222,24 @@ public class CourseServiceImpl implements CourseService {
     }
 
     /**
+     * Administrators can manage the tenant catalogue; a standalone instructor
+     * can only read or mutate a course currently assigned to that instructor.
+     */
+    private void assertInstructorOwns(Course course) {
+        if (isInstructorOnly() && !requireCurrentUserId().equals(course.getInstructorId())) {
+            throw new ApplicationException(ErrorCode.ACCESS_DENIED,
+                    "Instructors can only access courses assigned to them");
+        }
+    }
+
+    private boolean isInstructorOnly() {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        return principal.getRoles().contains(SystemRoles.INSTRUCTOR)
+                && !principal.getRoles().contains(SystemRoles.ADMIN)
+                && !principal.getRoles().contains("SUPER_ADMIN");
+    }
+
+    /**
      * Guards a lifecycle action: throws if the course is not in one of the allowed statuses.
      */
     private void requireStatus(Course course, String action, CourseStatus... allowed) {
@@ -222,7 +259,8 @@ public class CourseServiceImpl implements CourseService {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
 
             if (StringUtils.hasText(search)) {
-                predicates.add(cb.like(cb.lower(root.get("title")), "%" + search.toLowerCase() + "%"));
+                predicates.add(cb.like(cb.lower(root.get("title")),
+                        LikePatternUtils.containsIgnoreCase(search), '\\'));
             }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));

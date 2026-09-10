@@ -146,7 +146,11 @@ public class SessionServiceImpl implements SessionService {
      * logs in on every request would grow the table without limit.
      */
     private void enforceSessionCap(UUID userId) {
-        List<UserSession> active = sessionRepository.findAllByUserIdAndRevokedFalseOrderByLastUsedAtDesc(userId);
+        Instant now = Instant.now();
+        List<UserSession> active = sessionRepository.findAllByUserIdAndRevokedFalseOrderByLastUsedAtDesc(userId)
+                .stream()
+                .filter(session -> !session.isExpired(now))
+                .toList();
         int surplus = active.size() - policy.getMaxSessionsPerUser() + 1;
 
         if (surplus <= 0) {

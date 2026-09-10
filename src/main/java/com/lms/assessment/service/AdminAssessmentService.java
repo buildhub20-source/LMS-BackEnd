@@ -83,5 +83,11 @@ public interface AdminAssessmentService {
      * @param studentId    the student who receives the extra attempt
      */
     void retestStudent(UUID assessmentId, UUID studentId);
+
+    /**
+     * Enable or disable student result analytics (answers and points visibility) for an assessment.
+     * Can be updated in any non-ARCHIVED status (DRAFT, PUBLISHED, CLOSED).
+     */
+    AssessmentResponse toggleResultAnalytics(UUID id, boolean enabled);
 }
 

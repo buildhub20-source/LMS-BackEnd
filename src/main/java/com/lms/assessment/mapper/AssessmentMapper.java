@@ -30,6 +30,7 @@ public interface AssessmentMapper {
     @Mapping(source = "assessment.createdBy",       target = "createdBy")
     @Mapping(source = "assessment.createdAt",       target = "createdAt")
     @Mapping(source = "assessment.updatedAt",       target = "updatedAt")
+    @Mapping(source = "assessment.showResultAnalytics", target = "showResultAnalytics")
     @Mapping(source = "questionCount",              target = "questionCount")
     AssessmentResponse toResponse(Assessment assessment, long questionCount);
 
@@ -42,6 +43,7 @@ public interface AssessmentMapper {
     @Mapping(source = "assessment.startTime",       target = "startTime")
     @Mapping(source = "assessment.endTime",         target = "endTime")
     @Mapping(source = "assessment.createdAt",       target = "createdAt")
+    @Mapping(source = "assessment.showResultAnalytics", target = "showResultAnalytics")
     @Mapping(source = "questionCount",              target = "questionCount")
     AssessmentSummaryResponse toSummaryResponse(Assessment assessment, long questionCount);
 }

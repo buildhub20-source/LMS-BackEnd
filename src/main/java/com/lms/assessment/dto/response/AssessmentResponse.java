@@ -26,6 +26,8 @@ public record AssessmentResponse(
         Instant createdAt,
         Instant updatedAt,
 
+        boolean showResultAnalytics,
+
         /** Number of questions currently attached to this assessment. */
         long questionCount
 ) {}

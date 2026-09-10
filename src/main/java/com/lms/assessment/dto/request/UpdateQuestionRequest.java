@@ -39,5 +39,8 @@ public record UpdateQuestionRequest(
         Integer memoryLimitMb,
 
         @Valid
-        List<CreateTestCaseRequest> testCases
+        List<CreateTestCaseRequest> testCases,
+
+        @Valid
+        List<CreateQuestionOptionRequest> options
 ) {}

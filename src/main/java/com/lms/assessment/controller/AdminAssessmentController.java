@@ -22,11 +22,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -161,6 +163,20 @@ public class AdminAssessmentController {
     public ResponseEntity<ApiResponse<AssessmentResponse>> archive(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));
+    }
+
+    // ---------------------------------------------------------------
+    // PATCH/POST /api/v1/admin/assessments/{id}/result-analytics
+    // ---------------------------------------------------------------
+
+    @Operation(summary = "Enable or disable student result analytics (answers and points visibility)")
+    @RequestMapping(value = "/{id}/result-analytics", method = {RequestMethod.PATCH, RequestMethod.POST})
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentResponse>> toggleResultAnalytics(
+            @PathVariable UUID id,
+            @RequestParam(name = "enabled", required = false, defaultValue = "true") boolean enabled) {
+        return ResponseEntity.ok(
+                ApiResponse.of(assessmentService.toggleResultAnalytics(id, enabled), "Result analytics visibility updated"));
     }
 
     // ---------------------------------------------------------------

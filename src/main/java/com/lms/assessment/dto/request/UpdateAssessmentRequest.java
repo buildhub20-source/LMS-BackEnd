@@ -35,5 +35,7 @@ public record UpdateAssessmentRequest(
 
         Instant startTime,
 
-        Instant endTime
+        Instant endTime,
+
+        Boolean showResultAnalytics
 ) {}

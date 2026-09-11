@@ -46,6 +46,8 @@ public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
             """)
     long countPendingForUser(@Param("userId") UUID userId, @Param("now") Instant now);
 
+    long countByAcceptedAtIsNullAndExpiresAtAfter(Instant now);
+
     Optional<Invitation> findFirstByUserIdOrderByCreatedAtDesc(UUID userId);
 
     /**

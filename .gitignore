@@ -33,6 +33,7 @@ Thumbs.db
 
 # Logs and temp files
 *.log
+*.log.*
 logs/
 *.pid
 *.hprof

@@ -15,4 +15,6 @@ public interface AssessmentRepository extends JpaRepository<Assessment, UUID> {
     Page<Assessment> findByStatusOrderByCreatedAtDesc(AssessmentStatus status, Pageable pageable);
 
     long countByCreatedBy(UUID createdBy);
+
+    long countByStatus(AssessmentStatus status);
 }

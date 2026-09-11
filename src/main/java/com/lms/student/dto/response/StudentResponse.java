@@ -33,9 +33,6 @@ public class StudentResponse {
     private Gender gender;
     private LocalDate admissionDate;
 
-    private UUID categoryId;
-    private String categoryName;
-
     private String photoKey;
     private String photoUrl;
 

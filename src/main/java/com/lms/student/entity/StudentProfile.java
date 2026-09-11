@@ -76,10 +76,6 @@ public class StudentProfile extends Timestamped {
     @Column(name = "photo_key", length = 512)
     private String photoKey;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private StudentCategory category;
-
     @Column(name = "admission_date")
     private LocalDate admissionDate;
 

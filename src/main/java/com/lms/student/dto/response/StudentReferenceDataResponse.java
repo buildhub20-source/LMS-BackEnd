@@ -20,7 +20,6 @@ public class StudentReferenceDataResponse {
     /** Only batches worth enrolling into: PLANNED and ONGOING. */
     private List<BatchResponse> batches;
 
-    private List<ReferenceItemResponse> categories;
     private List<String> genders;
     private List<String> idProofTypes;
     private List<String> enrolmentStatuses;

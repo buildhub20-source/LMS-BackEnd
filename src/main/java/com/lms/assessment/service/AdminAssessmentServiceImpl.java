@@ -192,6 +192,11 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         Assessment assessment = requireAssessment(id);
         requireDraft(assessment, "delete");
 
+        List<AssessmentAttempt> attempts = assessmentAttemptRepository.findByAssessmentIdOrderByStartedAtDesc(id);
+        if (!attempts.isEmpty()) {
+            assessmentAttemptRepository.deleteAll(attempts);
+        }
+
         assessmentRepository.delete(assessment);
         log.info("Admin deleted draft assessment {}", id);
     }

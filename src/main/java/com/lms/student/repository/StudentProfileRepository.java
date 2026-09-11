@@ -13,9 +13,6 @@ public interface StudentProfileRepository
 
     boolean existsByRegistrationNoIgnoreCase(String registrationNo);
 
-    /** Guards category deletion, and reports usage on the category list. */
-    long countByCategoryId(UUID categoryId);
-
     Optional<StudentProfile> findByUserId(UUID userId);
 
     /**

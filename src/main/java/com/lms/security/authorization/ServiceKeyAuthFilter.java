@@ -10,9 +10,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Protects {@code /api/v1/internal/**} endpoints from external callers.
@@ -32,6 +36,8 @@ public class ServiceKeyAuthFilter extends OncePerRequestFilter {
 
     public static final String SERVICE_KEY_HEADER = "X-Service-Key";
     public static final String INTERNAL_PATH_PREFIX = "/api/v1/internal/";
+    /** Authority granted only after a valid service-to-service key is verified. */
+    public static final String INTERNAL_SERVICE_AUTHORITY = "INTERNAL_SERVICE";
 
     private final InternalApiConfig internalApiConfig;
 
@@ -55,6 +61,15 @@ public class ServiceKeyAuthFilter extends OncePerRequestFilter {
             response.getWriter().write("{\"error\":\"Unauthorized\"}");
             return;
         }
+
+        // Do not rely on this filter's short-circuit alone. Establish an
+        // authenticated principal so Spring Security's authorization rules
+        // also reject an internal route if filter ordering changes later.
+        var authentication = new UsernamePasswordAuthenticationToken(
+                "internal-service",
+                null,
+                List.of(new SimpleGrantedAuthority(INTERNAL_SERVICE_AUTHORITY)));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);
     }

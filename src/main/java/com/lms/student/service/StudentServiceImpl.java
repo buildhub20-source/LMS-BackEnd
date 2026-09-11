@@ -6,6 +6,7 @@ import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.PageResponse;
+import com.lms.common.util.LikePatternUtils;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.common.service.StorageService;
@@ -31,12 +32,10 @@ import com.lms.student.entity.EnrolmentStatus;
 import com.lms.common.domain.Gender;
 import com.lms.common.domain.IdProofType;
 import com.lms.student.entity.StudentBatch;
-import com.lms.student.entity.StudentCategory;
 import com.lms.student.entity.StudentProfile;
 import com.lms.student.mapper.StudentMapper;
 import com.lms.student.repository.BatchRepository;
 import com.lms.student.repository.StudentBatchRepository;
-import com.lms.student.repository.StudentCategoryRepository;
 import com.lms.student.repository.StudentProfileRepository;
 import com.lms.user.entity.User;
 import com.lms.user.repository.UserRepository;
@@ -71,7 +70,6 @@ public class StudentServiceImpl implements StudentService {
     private final StudentProfileRepository studentRepository;
     private final StudentBatchRepository enrolmentRepository;
     private final BatchRepository batchRepository;
-    private final StudentCategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final AssessmentAttemptRepository attemptRepository;
     private final SubmissionRepository submissionRepository;
@@ -109,7 +107,6 @@ public class StudentServiceImpl implements StudentService {
                 .registrationNo(registrationNo)
                 .dateOfBirth(request.getDateOfBirth())
                 .gender(request.getGender())
-                .category(resolveCategory(request.getCategoryId()))
                 .admissionDate(request.getAdmissionDate() == null
                         ? LocalDate.now()
                         : request.getAdmissionDate())
@@ -168,7 +165,6 @@ public class StudentServiceImpl implements StudentService {
 
         if (request.getDateOfBirth() != null)   profile.setDateOfBirth(request.getDateOfBirth());
         if (request.getGender() != null)        profile.setGender(request.getGender());
-        if (request.getCategoryId() != null)    profile.setCategory(resolveCategory(request.getCategoryId()));
         if (request.getAdmissionDate() != null) profile.setAdmissionDate(request.getAdmissionDate());
         if (request.getPhotoKey() != null)      profile.setPhotoKey(trimToNull(request.getPhotoKey()));
 
@@ -255,9 +251,6 @@ public class StudentServiceImpl implements StudentService {
                 // Completed and cancelled batches are not worth offering on an
                 // intake form; an edit form still renders whatever is attached.
                 .batches(batchService.findOpenForEnrolment())
-                .categories(categoryRepository.findAllByOrderBySortOrderAsc().stream()
-                        .map(category -> new ReferenceItemResponse(category.getId(), category.getName()))
-                        .toList())
                 .genders(names(Gender.values()))
                 .idProofTypes(names(IdProofType.values()))
                 .enrolmentStatuses(names(EnrolmentStatus.values()))
@@ -350,12 +343,12 @@ public class StudentServiceImpl implements StudentService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (StringUtils.hasText(search)) {
-                String pattern = "%" + search.trim().toLowerCase() + "%";
+                String pattern = LikePatternUtils.containsIgnoreCase(search);
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("registrationNo")), pattern),
-                        cb.like(cb.lower(root.get("user").get("name")), pattern),
-                        cb.like(cb.lower(root.get("user").get("email")), pattern),
-                        cb.like(cb.lower(root.get("employer")), pattern)));
+                        cb.like(cb.lower(root.get("registrationNo")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("user").get("name")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("user").get("email")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("employer")), pattern, '\\')));
             }
 
             if (batchId != null || enrolmentStatus != null) {
@@ -406,14 +399,6 @@ public class StudentServiceImpl implements StudentService {
     private StudentProfile requireStudent(UUID id) {
         return studentRepository.findByIdWithEnrolments(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Student", id));
-    }
-
-    private StudentCategory resolveCategory(UUID id) {
-        if (id == null) {
-            return null;
-        }
-        return categoryRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.of("Student category", id));
     }
 
     private static Address toAddress(AddressRequest request) {

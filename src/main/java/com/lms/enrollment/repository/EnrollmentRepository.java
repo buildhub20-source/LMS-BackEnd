@@ -49,7 +49,6 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID>, J
 
     @Query("SELECT COUNT(e) FROM Enrollment e WHERE e.course.instructorId = :instructorId")
     long countByCourseInstructorId(@Param("instructorId") UUID instructorId);
-
     /**
      * Lightweight course-level engagement data for administrator reporting.
      * Each row contains course id, total enrollments, and completed enrollments.

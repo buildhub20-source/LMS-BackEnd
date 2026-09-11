@@ -106,7 +106,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     @Override
     @Transactional
     public StartAttemptResponse startAttempt(UUID assessmentId, UUID studentId) {
-        Assessment assessment = assessmentRepository.findById(assessmentId)
+        Assessment assessment = assessmentRepository.findByIdForAttemptStart(assessmentId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Assessment", assessmentId));
 
         if (!assessment.isPublished()) {
@@ -361,7 +361,9 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
 
         for (int i = 0; i < attempts.getNumberOfElements(); i++) {
             AssessmentAttempt a = attempts.getContent().get(i);
-            long attemptNum = totalAttempts - ((long) attempts.getNumber() * attempts.getSize()) - i;
+            // A concurrent insert/delete can make the count query briefly
+            // disagree with this page; do not expose zero/negative numbers.
+            long attemptNum = Math.max(1L, totalAttempts - attempts.getPageable().getOffset() - i);
             int score = a.getScore() != null ? a.getScore() : 0;
             double pct = assessment.getTotalMarks() > 0 ? (score * 100.0 / assessment.getTotalMarks()) : 0.0;
 
@@ -756,12 +758,16 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         attemptRepository.save(attempt);
 
         List<Submission> submissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attempt.getId());
+        List<Submission> drafts = new ArrayList<>();
         for (Submission sub : submissions) {
             if ("DRAFT".equals(sub.getStatus())) {
                 sub.setStatus("SUBMITTED");
                 sub.setSubmittedAt(now);
-                submissionRepository.save(sub);
+                drafts.add(sub);
             }
+        }
+        if (!drafts.isEmpty()) {
+            submissionRepository.saveAll(drafts);
         }
         int autoScore = autoGradeMcqSubmissions(attempt, submissions);
         if (attempt.getScore() == null || attempt.getScore() == 0) {
@@ -825,8 +831,10 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         }
 
         if (assessment.isRandomizeQuestions() && attemptId != null) {
-            // Seed Random with attemptId hashCode for deterministic order per attempt
-            Collections.shuffle(list, new Random(attemptId.hashCode()));
+            // Use all UUID bits: deterministic for this attempt without the high collision
+            // rate of UUID.hashCode().
+            Collections.shuffle(list, new Random(
+                    attemptId.getMostSignificantBits() ^ attemptId.getLeastSignificantBits()));
         }
 
         return list;

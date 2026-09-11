@@ -146,7 +146,7 @@ class StudentAssessmentServiceTest {
         @DisplayName("starts a new attempt when limit is not reached")
         void startsNewAttempt() {
             Assessment assessment = publishedAssessment();
-            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(assessmentRepository.findByIdForAttemptStart(assessmentId)).thenReturn(Optional.of(assessment));
             when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId))
                     .thenReturn(List.of());
             when(attemptRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -164,7 +164,7 @@ class StudentAssessmentServiceTest {
             Assessment assessment = publishedAssessment();
             AssessmentAttempt attempt = activeAttempt(assessment);
 
-            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(assessmentRepository.findByIdForAttemptStart(assessmentId)).thenReturn(Optional.of(assessment));
             when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId))
                     .thenReturn(List.of(attempt));
 
@@ -182,7 +182,7 @@ class StudentAssessmentServiceTest {
             AssessmentAttempt past2 = activeAttempt(assessment);
             past2.setStatus(AttemptStatus.SUBMITTED);
 
-            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(assessmentRepository.findByIdForAttemptStart(assessmentId)).thenReturn(Optional.of(assessment));
             when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId))
                     .thenReturn(List.of(past1, past2));
 
@@ -208,7 +208,7 @@ class StudentAssessmentServiceTest {
                             .extraAttempts(1)
                             .build();
 
-            when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
+            when(assessmentRepository.findByIdForAttemptStart(assessmentId)).thenReturn(Optional.of(assessment));
             when(attemptRepository.findByAssessmentIdAndStudentIdOrderByStartedAtDesc(assessmentId, studentId))
                     .thenReturn(List.of(expiredAttempt));
             when(retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId))

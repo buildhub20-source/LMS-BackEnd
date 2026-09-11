@@ -3,6 +3,7 @@ package com.lms.student.service;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceAlreadyExistsException;
 import com.lms.common.exception.ResourceNotFoundException;
+import com.lms.common.util.LikePatternUtils;
 import com.lms.common.response.PageResponse;
 import com.lms.course.repository.CourseRepository;
 import com.lms.student.dto.request.CreateBatchRequest;
@@ -192,10 +193,10 @@ public class BatchServiceImpl implements BatchService {
             List<Predicate> predicates = new ArrayList<>();
 
             if (StringUtils.hasText(search)) {
-                String pattern = "%" + search.trim().toLowerCase() + "%";
+                String pattern = LikePatternUtils.containsIgnoreCase(search);
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("code")), pattern),
-                        cb.like(cb.lower(root.get("name")), pattern)));
+                        cb.like(cb.lower(root.get("code")), pattern, '\\'),
+                        cb.like(cb.lower(root.get("name")), pattern, '\\')));
             }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));

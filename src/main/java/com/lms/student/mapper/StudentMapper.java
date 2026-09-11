@@ -41,11 +41,6 @@ public class StudentMapper {
         resp.setGender(profile.getGender());
         resp.setAdmissionDate(profile.getAdmissionDate());
 
-        if (profile.getCategory() != null) {
-            resp.setCategoryId(profile.getCategory().getId());
-            resp.setCategoryName(profile.getCategory().getName());
-        }
-
         resp.setPhotoKey(profile.getPhotoKey());
         resp.setPhotoUrl(publicUrl(profile.getPhotoKey()));
 

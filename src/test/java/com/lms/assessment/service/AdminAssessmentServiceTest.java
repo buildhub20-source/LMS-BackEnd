@@ -79,6 +79,7 @@ class AdminAssessmentServiceTest {
                 assessment.getMaxAttempts(), false, "BEST_SCORE", assessment.getStatus(),
                 assessment.getStartTime(), assessment.getEndTime(),
                 assessment.getCreatedBy(), Instant.now(), Instant.now(),
+                true,
                 questionCount
         );
     }
@@ -95,7 +96,7 @@ class AdminAssessmentServiceTest {
         @DisplayName("persists a DRAFT assessment and returns the response")
         void createsADraftAssessment() {
             CreateAssessmentRequest request = new CreateAssessmentRequest(
-                    "Java Fundamentals", "Description", 60, 100, 1, false, "BEST_SCORE", null, null);
+                    "Java Fundamentals", "Description", 60, 100, 1, false, "BEST_SCORE", null, null, true);
 
             Assessment saved = draftAssessment();
             when(assessmentRepository.save(any(Assessment.class))).thenReturn(saved);
@@ -115,7 +116,7 @@ class AdminAssessmentServiceTest {
         @DisplayName("applies default durationMinutes when not provided")
         void appliesDefaultDuration() {
             CreateAssessmentRequest request = new CreateAssessmentRequest(
-                    "Test", null, null, null, null, null, null, null, null);
+                    "Test", null, null, null, null, null, null, null, null, true);
 
             when(assessmentRepository.save(any(Assessment.class))).thenAnswer(invocation -> {
                 Assessment a = invocation.getArgument(0);
@@ -127,7 +128,7 @@ class AdminAssessmentServiceTest {
             when(assessmentQuestionRepository.countByAssessmentId(any())).thenReturn(0L);
             when(assessmentMapper.toResponse(any(), anyLong())).thenReturn(
                     new AssessmentResponse(assessmentId, "Test", null, 60, 0, 1, false, "BEST_SCORE",
-                            AssessmentStatus.DRAFT, null, null, adminId, Instant.now(), Instant.now(), 0)
+                            AssessmentStatus.DRAFT, null, null, adminId, Instant.now(), Instant.now(), true, 0)
             );
 
             service.create(request, adminId);
@@ -184,7 +185,7 @@ class AdminAssessmentServiceTest {
             when(assessmentMapper.toResponse(any(), anyLong())).thenReturn(stubResponse(assessment, 0));
 
             UpdateAssessmentRequest request = new UpdateAssessmentRequest(
-                    "Updated Title", null, null, null, false, "BEST_SCORE", null, null);
+                    "Updated Title", null, null, null, false, "BEST_SCORE", null, null, true);
             service.update(assessmentId, request);
 
             assertThat(assessment.getTitle()).isEqualTo("Updated Title");
@@ -199,7 +200,7 @@ class AdminAssessmentServiceTest {
             when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
 
             UpdateAssessmentRequest request = new UpdateAssessmentRequest(
-                    "Title", null, null, null, false, "BEST_SCORE", null, null);
+                    "Title", null, null, null, false, "BEST_SCORE", null, null, true);
 
             assertThatThrownBy(() -> service.update(assessmentId, request))
                     .isInstanceOf(BusinessRuleException.class)
@@ -252,12 +253,9 @@ class AdminAssessmentServiceTest {
         @DisplayName("publishes a valid DRAFT assessment")
         void publishesValidDraft() {
             Assessment assessment = draftAssessment();
-            UUID q1 = UUID.randomUUID();
 
             when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
             when(assessmentQuestionRepository.countByAssessmentId(assessmentId)).thenReturn(1L);
-            when(assessmentQuestionRepository.findQuestionIdsWithTestCases(assessmentId))
-                    .thenReturn(List.of(q1));
             when(assessmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
             when(assessmentMapper.toResponse(any(), anyLong()))
                     .thenReturn(stubResponse(assessment, 1));
@@ -280,18 +278,17 @@ class AdminAssessmentServiceTest {
         }
 
         @Test
-        @DisplayName("rejects publish when a question has no test cases")
+        @DisplayName("rejects publish when a coding question has no test cases")
         void rejectsPublishWhenQuestionHasNoTestCases() {
             Assessment assessment = draftAssessment();
             when(assessmentRepository.findById(assessmentId)).thenReturn(Optional.of(assessment));
             when(assessmentQuestionRepository.countByAssessmentId(assessmentId)).thenReturn(2L);
-            // Only 1 question has test cases, but there are 2 questions → reject
-            when(assessmentQuestionRepository.findQuestionIdsWithTestCases(assessmentId))
+            when(assessmentQuestionRepository.findCodingQuestionIdsWithoutTestCases(assessmentId))
                     .thenReturn(List.of(UUID.randomUUID()));
 
             assertThatThrownBy(() -> service.publish(assessmentId))
                     .isInstanceOf(BusinessRuleException.class)
-                    .hasMessageContaining("test case");
+                    .hasMessageContaining("coding question must have at least one test case");
         }
 
         @Test
@@ -347,7 +344,7 @@ class AdminAssessmentServiceTest {
             when(assessmentMapper.toSummaryResponse(any(), anyLong()))
                     .thenReturn(new AssessmentSummaryResponse(
                             assessmentId, "Java Fundamentals", 60, 100, 1,
-                            AssessmentStatus.DRAFT, null, null, Instant.now(), 0));
+                            AssessmentStatus.DRAFT, null, null, Instant.now(), 0, true));
 
             PageResponse<AssessmentSummaryResponse> result = service.list(null, pageable);
 

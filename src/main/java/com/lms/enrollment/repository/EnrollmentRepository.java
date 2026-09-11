@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -48,4 +49,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID>, J
 
     @Query("SELECT COUNT(e) FROM Enrollment e WHERE e.course.instructorId = :instructorId")
     long countByCourseInstructorId(@Param("instructorId") UUID instructorId);
+    /**
+     * Lightweight course-level engagement data for administrator reporting.
+     * Each row contains course id, total enrollments, and completed enrollments.
+     */
+    @Query("select e.course.id, count(e), sum(case when e.status = :completedStatus then 1 else 0 end) "
+            + "from Enrollment e group by e.course.id")
+    List<Object[]> summarizeByCourse(@Param("completedStatus") EnrollmentStatus completedStatus);
 }

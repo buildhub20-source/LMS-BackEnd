@@ -54,8 +54,6 @@ public class CreateStudentRequest {
 
     private Gender gender;
 
-    private UUID categoryId;
-
     /** Defaults to today when omitted. */
     private LocalDate admissionDate;
 

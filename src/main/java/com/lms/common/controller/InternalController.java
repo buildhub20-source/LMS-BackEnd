@@ -105,6 +105,11 @@ public class InternalController {
                         o.getLogoUrl(),
                         o.getPrimaryColor(),
                         o.getSupportEmail()))
-                .orElseThrow(() -> new ResourceNotFoundException("Organisation settings have not been configured"));
+                .orElseGet(() -> new InternalOrgSettingsDto(
+                        "Acme Learning Portal",
+                        "lms.local",
+                        null,
+                        "#10b981",
+                        "support@lms.local"));
     }
 }

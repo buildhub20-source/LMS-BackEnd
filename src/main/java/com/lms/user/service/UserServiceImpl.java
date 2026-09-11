@@ -26,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -110,9 +111,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public PageResponse<UserResponse> search(String search, Boolean active, Pageable pageable) {
+    public PageResponse<UserResponse> search(String search, Boolean active, Boolean locked, Pageable pageable) {
         String term = StringUtils.hasText(search) ? search.trim() : null;
-        return PageResponse.from(userRepository.search(term, active, PageRequests.sanitize(pageable)),
+        return PageResponse.from(userRepository.search(term, active, locked, PageRequests.sanitize(pageable)),
                 userMapper::toResponse);
     }
 
@@ -199,7 +200,7 @@ public class UserServiceImpl implements UserService {
         try {
             userRepository.delete(user);
             userRepository.flush();
-        } catch (Exception e) {
+        } catch (DataIntegrityViolationException e) {
             // Hard delete failed due to FK constraints; soft-delete instead
             accountStatusService.deactivate(user, currentActorId(), "Account removed by administrator");
             user.setActive(false);
@@ -286,6 +287,11 @@ public class UserServiceImpl implements UserService {
                     log.warn("Storage service upload skipped/failed: {}. Falling back to inline data URL.", storageException.getMessage());
                 }
                 if (url == null || url.isBlank()) {
+                    // The URL column is deliberately small. Only use a base64 fallback
+                    // when it fits; otherwise fail cleanly instead of a DB truncation.
+                    if (file.getSize() > 300) {
+                        throw new BusinessRuleException("Avatar storage is unavailable; please try again later");
+                    }
                     String base64 = Base64.getEncoder().encodeToString(file.getBytes());
                     url = "data:" + contentType + ";base64," + base64;
                 }

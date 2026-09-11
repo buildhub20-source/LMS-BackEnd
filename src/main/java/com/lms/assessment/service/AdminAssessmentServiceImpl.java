@@ -152,11 +152,15 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         if (StringUtils.hasText(request.retakePolicy())) {
             try {
                 assessment.setRetakePolicy(RetakePolicy.valueOf(request.retakePolicy().toUpperCase()));
-            } catch (IllegalArgumentException ignored) {}
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessRuleException("Unsupported retake policy: " + request.retakePolicy());
+            }
         }
-        // Null start/end times are meaningful (clearing an existing window)
-        if (request.startTime() != null || request.endTime() != null) {
+        // Preserve the counterpart when a partial update changes one boundary.
+        if (request.startTime() != null) {
             assessment.setStartTime(request.startTime());
+        }
+        if (request.endTime() != null) {
             assessment.setEndTime(request.endTime());
         }
         if (request.showResultAnalytics() != null) {
@@ -187,6 +191,11 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     public void delete(UUID id) {
         Assessment assessment = requireAssessment(id);
         requireDraft(assessment, "delete");
+
+        List<AssessmentAttempt> attempts = assessmentAttemptRepository.findByAssessmentIdOrderByStartedAtDesc(id);
+        if (!attempts.isEmpty()) {
+            assessmentAttemptRepository.deleteAll(attempts);
+        }
 
         assessmentRepository.delete(assessment);
         log.info("Admin deleted draft assessment {}", id);
@@ -511,13 +520,14 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
             log.info("Retest: closed abandoned in-progress attempt {} for student {}", att.getId(), studentId);
         }
 
-        // Upsert: set extra_attempts to 1 to enable 1 retake for the student.
+        // Each grant is additive. Repeated admin actions must not silently remove an
+        // unused retake already granted to the student.
         Optional<AssessmentRetestGrant> existing =
                 retestGrantRepository.findByAssessmentIdAndStudentId(assessmentId, studentId);
 
         if (existing.isPresent()) {
             AssessmentRetestGrant grant = existing.get();
-            grant.setExtraAttempts(1);
+            grant.setExtraAttempts(grant.getExtraAttempts() + 1);
             grant.setGrantedAt(java.time.Instant.now());
             retestGrantRepository.save(grant);
             log.info("Retest: ensured 1 retake opportunity for student {} on assessment '{}'",

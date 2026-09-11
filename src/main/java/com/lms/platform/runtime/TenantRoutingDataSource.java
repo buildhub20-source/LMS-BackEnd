@@ -55,11 +55,20 @@ public class TenantRoutingDataSource implements DataSource, AutoCloseable {
         config.setConnectionTimeout(30_000);
         config.setIdleTimeout(300_000);
         config.setMaxLifetime(900_000);
-        HikariDataSource pool = new HikariDataSource(config);
-
-        migrateTenantDatabase(pool, connection.slug());
-
-        return pool;
+        HikariDataSource pool = null;
+        try {
+            pool = new HikariDataSource(config);
+            migrateTenantDatabase(pool, connection.slug());
+            return pool;
+        } catch (RuntimeException ex) {
+            // computeIfAbsent only caches a value returned successfully.  Close the
+            // partially initialized pool before propagating so a failed migration
+            // cannot leave a usable-but-unmigrated tenant data source behind.
+            if (pool != null) {
+                pool.close();
+            }
+            throw ex;
+        }
     }
 
     private void migrateTenantDatabase(DataSource dataSource, String slug) {
@@ -79,6 +88,7 @@ public class TenantRoutingDataSource implements DataSource, AutoCloseable {
             log.info("Flyway migrations up to date for tenant '{}'", slug);
         } catch (Exception ex) {
             log.error("Failed to run Flyway migration for tenant '{}': {}", slug, ex.getMessage(), ex);
+            throw new IllegalStateException("Tenant database migration failed for " + slug, ex);
         }
     }
 

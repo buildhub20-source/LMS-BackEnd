@@ -45,17 +45,15 @@ public class SecurityConfig {
             ApiPaths.AUTH + "/reset-password",
             ApiPaths.AUTH + "/accept-invitation",
             ApiPaths.PLATFORM + "/auth/login",
+            ApiPaths.ORGANIZATION,
+            "/error",
             ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"
     };
 
-    /**
-     * Paths handled exclusively by {@link ServiceKeyAuthFilter}.
-     * They are marked as permitAll in the JWT security chain because
-     * the service-key filter already enforces access control on them.
-     */
+    /** Paths served only by callers authenticated with the service key. */
     private static final String[] INTERNAL_ENDPOINTS = {
             ApiPaths.INTERNAL + "/**"
     };
@@ -85,7 +83,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        .requestMatchers(INTERNAL_ENDPOINTS).permitAll() // guarded by ServiceKeyAuthFilter
+                        .requestMatchers(INTERNAL_ENDPOINTS)
+                        .hasAuthority(ServiceKeyAuthFilter.INTERNAL_SERVICE_AUTHORITY)
                         .requestMatchers(ApiPaths.PLATFORM + "/**").hasAuthority("PLATFORM_ADMIN")
                         .requestMatchers(actuatorBase + "/health/**", actuatorBase + "/info").permitAll()
                         .requestMatchers(actuatorBase + "/**").hasRole("ADMIN")

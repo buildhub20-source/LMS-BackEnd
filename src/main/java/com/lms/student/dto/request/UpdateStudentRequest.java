@@ -44,8 +44,6 @@ public class UpdateStudentRequest {
 
     private Gender gender;
 
-    private UUID categoryId;
-
     private LocalDate admissionDate;
 
     @Size(max = 512)

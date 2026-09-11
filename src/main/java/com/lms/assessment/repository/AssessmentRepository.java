@@ -27,4 +27,6 @@ public interface AssessmentRepository extends JpaRepository<Assessment, UUID> {
     Optional<Assessment> findByIdForAttemptStart(@Param("id") UUID id);
 
     long countByCreatedBy(UUID createdBy);
+
+    long countByStatus(AssessmentStatus status);
 }

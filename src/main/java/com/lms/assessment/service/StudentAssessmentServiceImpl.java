@@ -678,7 +678,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         String contentType = request.contentType() != null && !request.contentType().isBlank()
                 ? request.contentType()
                 : "video/webm";
-        String objectKey = String.format("assessments/attempts/%s/%s.webm", attemptId, UUID.randomUUID());
+        String objectKey = String.format("recordings/%s.webm", attemptId);
 
         String presignedUrl = storageService.generatePresignedUploadUrl(objectKey, contentType);
         String publicUrl = storageService.getPublicUrl(objectKey);

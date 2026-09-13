@@ -21,4 +21,6 @@ public interface AdminSectionService {
     void deleteSection(UUID sectionId);
 
     void moveQuestionToSection(UUID assessmentQuestionId, UUID sectionId);
+
+    void moveQuestionByAssessmentAndQuestionId(UUID assessmentId, UUID questionId, UUID sectionId);
 }

@@ -55,7 +55,12 @@ public class JwtService {
      * password hash or any other credential material.
      */
     public String generateAccessToken(LmsUserDetails principal, UUID sessionId) {
+        return generateAccessToken(principal, sessionId, jwtConfig.getAccessTokenTtl());
+    }
+
+    public String generateAccessToken(LmsUserDetails principal, UUID sessionId, java.time.Duration customTtl) {
         Instant now = Instant.now();
+        java.time.Duration ttl = (customTtl != null) ? customTtl : jwtConfig.getAccessTokenTtl();
 
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put(SecurityConstants.CLAIM_USER_ID, principal.getUserId().toString());
@@ -70,7 +75,7 @@ public class JwtService {
                 .subject(principal.getUsername())
                 .issuer(jwtConfig.getIssuer())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plus(jwtConfig.getAccessTokenTtl())))
+                .expiration(Date.from(now.plus(ttl)))
                 .id(UUID.randomUUID().toString())
                 .claims(claims)
                 .signWith(signingKey)

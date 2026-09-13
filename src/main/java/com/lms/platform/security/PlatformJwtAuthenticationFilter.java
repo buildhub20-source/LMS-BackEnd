@@ -27,7 +27,8 @@ public class PlatformJwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !request.getRequestURI().startsWith(ApiPaths.PLATFORM + "/")
-                || request.getRequestURI().equals(ApiPaths.PLATFORM + "/auth/login");
+                || request.getRequestURI().equals(ApiPaths.PLATFORM + "/auth/login")
+                || request.getRequestURI().equals(ApiPaths.PLATFORM + "/announcements/active");
     }
 
     @Override

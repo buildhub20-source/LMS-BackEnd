@@ -305,7 +305,7 @@ public class CurriculumService {
             extension = request.getFileName().substring(extIndex);
         }
         UUID recordingId = UUID.randomUUID();
-        String key = String.format("courses/%s/lessons/%s/%s%s", courseId, lessonId, recordingId, extension);
+        String key = String.format("videos/%s%s", lessonId, extension);
 
         // Do this before persisting metadata. A missing R2 configuration should
         // fall back to the direct-upload endpoint without leaving a PENDING row.
@@ -360,7 +360,7 @@ public class CurriculumService {
             extension = originalFilename.substring(extIndex);
         }
         UUID recordingId = UUID.randomUUID();
-        String key = String.format("courses/%s/lessons/%s/%s%s", courseId, lessonId, recordingId, extension);
+        String key = String.format("videos/%s%s", lessonId, extension);
 
         com.lms.course.entity.CourseRecording recording = new com.lms.course.entity.CourseRecording();
         recording.setId(recordingId);

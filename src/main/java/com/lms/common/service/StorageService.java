@@ -168,4 +168,24 @@ public class StorageService {
         }
         return url.endsWith("/") ? url + key : url + "/" + key;
     }
+
+    /**
+     * Deletes an object from Cloudflare R2 bucket.
+     */
+    public void deleteObject(String key) {
+        if (s3Client == null || key == null || key.isBlank()) {
+            return;
+        }
+        try {
+            software.amazon.awssdk.services.s3.model.DeleteObjectRequest deleteRequest =
+                    software.amazon.awssdk.services.s3.model.DeleteObjectRequest.builder()
+                            .bucket(r2.getBucket())
+                            .key(key)
+                            .build();
+            s3Client.deleteObject(deleteRequest);
+            log.info("Successfully deleted object from R2 bucket {}: {}", r2.getBucket(), key);
+        } catch (Exception e) {
+            log.warn("Failed to delete object from R2 bucket {} for key {}: {}", r2.getBucket(), key, e.getMessage());
+        }
+    }
 }

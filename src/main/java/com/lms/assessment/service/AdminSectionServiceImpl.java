@@ -142,6 +142,24 @@ public class AdminSectionServiceImpl implements AdminSectionService {
         log.debug("Moved question {} to section {}", assessmentQuestionId, sectionId);
     }
 
+    @Override
+    @Transactional
+    public void moveQuestionByAssessmentAndQuestionId(UUID assessmentId, UUID questionId, UUID sectionId) {
+        AssessmentQuestion aq = assessmentQuestionRepository.findByAssessmentIdAndQuestionId(assessmentId, questionId)
+                .orElseThrow(() -> ResourceNotFoundException.of("Question in assessment", questionId));
+
+        if (sectionId == null) {
+            aq.setSection(null);
+        } else {
+            Section section = sectionRepository.findById(sectionId)
+                    .orElseThrow(() -> ResourceNotFoundException.of("Section", sectionId));
+            aq.setSection(section);
+        }
+
+        assessmentQuestionRepository.save(aq);
+        log.debug("Moved question {} in assessment {} to section {}", questionId, assessmentId, sectionId);
+    }
+
     // ---------------------------------------------------------------
     // Private utilities
     // ---------------------------------------------------------------

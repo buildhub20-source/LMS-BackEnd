@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -95,5 +96,17 @@ public class AdminSectionController {
 
         sectionService.moveQuestionToSection(assessmentQuestionId, null);
         return ResponseEntity.ok(ApiResponse.message("Question removed from section"));
+    }
+
+    @Operation(summary = "Move a question into a section by assessment ID and question ID")
+    @PutMapping("/{assessmentId}/questions/{questionId}/section")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    public ResponseEntity<ApiResponse<Void>> moveQuestionByAssessmentAndQuestionId(
+            @PathVariable UUID assessmentId,
+            @PathVariable UUID questionId,
+            @RequestParam(name = "sectionId", required = false) UUID sectionId) {
+
+        sectionService.moveQuestionByAssessmentAndQuestionId(assessmentId, questionId, sectionId);
+        return ResponseEntity.ok(ApiResponse.message(sectionId == null ? "Question moved to unsectioned" : "Question moved to section"));
     }
 }

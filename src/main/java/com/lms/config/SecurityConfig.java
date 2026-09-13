@@ -45,6 +45,7 @@ public class SecurityConfig {
             ApiPaths.AUTH + "/reset-password",
             ApiPaths.AUTH + "/accept-invitation",
             ApiPaths.PLATFORM + "/auth/login",
+            ApiPaths.PLATFORM + "/announcements/active",
             ApiPaths.ORGANIZATION,
             "/error",
             ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)

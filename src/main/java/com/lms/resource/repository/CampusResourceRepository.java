@@ -21,9 +21,12 @@ public interface CampusResourceRepository extends JpaRepository<CampusResource, 
     List<CampusResource> findByAuthorIdOrderByCreatedAtDesc(UUID authorId);
 
     @Query("SELECT r FROM CampusResource r WHERE " +
-           "(:status IS NULL OR r.status = :status) AND " +
-           "(:category IS NULL OR r.category = :category) AND " +
-           "(:search IS NULL OR LOWER(r.title) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(r.description) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(r.authorName) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "(cast(:status as String) IS NULL OR r.status = :status) AND " +
+           "(cast(:category as String) IS NULL OR r.category = :category) AND " +
+           "(cast(:search as String) IS NULL OR " +
+           " LOWER(r.title) LIKE LOWER(CONCAT('%', cast(:search as String), '%')) OR " +
+           " LOWER(r.description) LIKE LOWER(CONCAT('%', cast(:search as String), '%')) OR " +
+           " LOWER(r.authorName) LIKE LOWER(CONCAT('%', cast(:search as String), '%'))) " +
            "ORDER BY r.createdAt DESC")
     List<CampusResource> searchResources(
             @Param("category") String category,

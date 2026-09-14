@@ -28,5 +28,7 @@ public interface CampusResourceService {
 
     ResourceDownloadResponse prepareDownload(UUID id, LmsUserDetails principal);
 
+    PresignedResourceUploadUrlResponse uploadFileDirect(org.springframework.web.multipart.MultipartFile file, String category, LmsUserDetails principal);
+
     CampusResource getResourceEntity(UUID id);
 }

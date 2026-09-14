@@ -86,12 +86,18 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.RESOURCE_NOT_FOUND, "No endpoint " + request.getRequestURI(), request);
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<java.util.Map<String, Object>> handleResponseStatus(org.springframework.web.server.ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode()).body(java.util.Map.of(
+                "status", ex.getStatusCode().value(), "message", ex.getReason() == null ? "Request failed" : ex.getReason()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpected(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {}", request.getRequestURI(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiError.of(ErrorCode.INTERNAL_ERROR.name(),
-                        "An unexpected error occurred", request.getRequestURI()));
+                        ex.getClass().getName() + ": " + ex.getMessage(), request.getRequestURI()));
     }
 
     private ResponseEntity<ApiError> build(ErrorCode code, String message, HttpServletRequest request) {

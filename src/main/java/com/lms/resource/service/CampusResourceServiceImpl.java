@@ -49,7 +49,18 @@ public class CampusResourceServiceImpl implements CampusResourceService {
         String effectiveCategory = (category != null && !category.equalsIgnoreCase("ALL")) ? category : null;
         String effectiveSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
 
-        List<CampusResource> resources = resourceRepository.searchResources(effectiveCategory, effectiveStatus, effectiveSearch);
+        List<CampusResource> resources;
+        if (effectiveSearch != null && !effectiveSearch.isBlank()) {
+            resources = resourceRepository.searchResources(effectiveCategory, effectiveStatus, effectiveSearch);
+        } else if (effectiveCategory != null && effectiveStatus != null) {
+            resources = resourceRepository.findByCategoryAndStatusOrderByCreatedAtDesc(effectiveCategory, effectiveStatus);
+        } else if (effectiveStatus != null) {
+            resources = resourceRepository.findByStatusOrderByCreatedAtDesc(effectiveStatus);
+        } else if (effectiveCategory != null) {
+            resources = resourceRepository.findByCategoryAndStatusOrderByCreatedAtDesc(effectiveCategory, "PUBLISHED");
+        } else {
+            resources = resourceRepository.findAllByOrderByCreatedAtDesc();
+        }
 
         return resources.stream()
                 .map(this::toResponse)
@@ -190,7 +201,7 @@ public class CampusResourceServiceImpl implements CampusResourceService {
         resource.setDownloadsCount(resource.getDownloadsCount() + 1);
         resourceRepository.save(resource);
 
-        String downloadUrl = storageService.generatePresignedGetUrl(resource.getFileKey());
+        String downloadUrl = storageService.generatePresignedGetUrl(resource.getFileKey(), resource.getFileName());
         if (downloadUrl == null) {
             downloadUrl = storageService.getPublicUrl(resource.getFileKey());
         }
@@ -200,6 +211,39 @@ public class CampusResourceServiceImpl implements CampusResourceService {
                 .fileName(resource.getFileName())
                 .fileType(resource.getFileType())
                 .downloadsCount(resource.getDownloadsCount())
+                .build();
+    }
+
+    @Override
+    public PresignedResourceUploadUrlResponse uploadFileDirect(org.springframework.web.multipart.MultipartFile file, String category, LmsUserDetails principal) {
+        if (file == null || file.isEmpty()) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "File must not be empty");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.isBlank()) {
+            originalFilename = "resource_" + UUID.randomUUID();
+        }
+
+        String sanitizedName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
+        String catFolder = formatCategoryFolder(category);
+        String key = String.format("resources/%s/%s", catFolder, sanitizedName);
+
+        try {
+            storageService.uploadFile(key, file.getInputStream(), file.getSize(), file.getContentType());
+            log.info("Direct multipart upload completed for key {} by user {}", key, principal.getUsername());
+        } catch (Exception e) {
+            log.error("Failed to upload file stream to R2 for key {}", key, e);
+            throw new ApplicationException(ErrorCode.INTERNAL_ERROR, "Failed to upload file to storage: " + e.getMessage());
+        }
+
+        String downloadUrl = storageService.generatePresignedGetUrl(key, sanitizedName);
+        String publicUrl = storageService.getPublicUrl(key);
+
+        return PresignedResourceUploadUrlResponse.builder()
+                .fileKey(key)
+                .uploadUrl(downloadUrl)
+                .publicUrl(publicUrl != null ? publicUrl : downloadUrl)
                 .build();
     }
 
@@ -222,7 +266,7 @@ public class CampusResourceServiceImpl implements CampusResourceService {
     }
 
     private CampusResourceResponse toResponse(CampusResource resource) {
-        String downloadUrl = storageService.generatePresignedGetUrl(resource.getFileKey());
+        String downloadUrl = storageService.generatePresignedGetUrl(resource.getFileKey(), resource.getFileName());
         if (downloadUrl == null) {
             downloadUrl = storageService.getPublicUrl(resource.getFileKey());
         }

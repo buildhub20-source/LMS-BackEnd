@@ -105,19 +105,31 @@ public class StorageService {
      * Generates a pre-signed GET URL for downloading or playing an object from R2.
      */
     public String generatePresignedGetUrl(String key) {
+        return generatePresignedGetUrl(key, null);
+    }
+
+    /**
+     * Generates a pre-signed GET URL for downloading with Content-Disposition attachment header.
+     */
+    public String generatePresignedGetUrl(String key, String fileName) {
         if (s3Presigner == null) {
             return null;
         }
         try {
-            software.amazon.awssdk.services.s3.model.GetObjectRequest objectRequest =
+            software.amazon.awssdk.services.s3.model.GetObjectRequest.Builder objectRequestBuilder =
                     software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
                     .bucket(r2.getBucket())
-                    .key(key)
-                    .build();
+                    .key(key);
+
+            if (fileName != null && !fileName.isBlank()) {
+                String safeName = fileName.replace("\"", "").trim();
+                objectRequestBuilder.responseContentDisposition("attachment; filename=\"" + safeName + "\"");
+            }
+
             software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest presignRequest =
                     software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest.builder()
                     .signatureDuration(Duration.ofHours(2))
-                    .getObjectRequest(objectRequest)
+                    .getObjectRequest(objectRequestBuilder.build())
                     .build();
             return s3Presigner.presignGetObject(presignRequest).url().toString();
         } catch (Exception e) {

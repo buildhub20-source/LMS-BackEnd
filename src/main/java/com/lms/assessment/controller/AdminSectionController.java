@@ -36,7 +36,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Create a new section within an assessment")
     @PostMapping("/{assessmentId}/sections")
-    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<SectionResponse>> addSection(
             @PathVariable UUID assessmentId,
             @Valid @RequestBody CreateSectionRequest request) {
@@ -48,7 +48,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Get all sections for an assessment (with nested questions)")
     @GetMapping("/{assessmentId}/sections")
-    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<List<SectionResponse>>> getSections(
             @PathVariable UUID assessmentId) {
 
@@ -58,7 +58,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Update a section's title or description")
     @PutMapping("/sections/{sectionId}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<SectionResponse>> updateSection(
             @PathVariable UUID sectionId,
             @Valid @RequestBody UpdateSectionRequest request) {
@@ -69,7 +69,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Delete a section (questions are moved to unsectioned)")
     @DeleteMapping("/sections/{sectionId}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> deleteSection(
             @PathVariable UUID sectionId) {
 
@@ -79,7 +79,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Move a question into a section")
     @PutMapping("/sections/{sectionId}/questions/{assessmentQuestionId}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> moveQuestionToSection(
             @PathVariable UUID sectionId,
             @PathVariable UUID assessmentQuestionId) {
@@ -90,7 +90,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Remove a question from its section (unsection it)")
     @PutMapping("/questions/{assessmentQuestionId}/unsection")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> unsectionQuestion(
             @PathVariable UUID assessmentQuestionId) {
 
@@ -100,7 +100,7 @@ public class AdminSectionController {
 
     @Operation(summary = "Move a question into a section by assessment ID and question ID")
     @PutMapping("/{assessmentId}/questions/{questionId}/section")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> moveQuestionByAssessmentAndQuestionId(
             @PathVariable UUID assessmentId,
             @PathVariable UUID questionId,

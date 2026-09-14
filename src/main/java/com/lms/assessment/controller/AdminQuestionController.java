@@ -35,7 +35,7 @@ public class AdminQuestionController {
 
     @Operation(summary = "Add a coding question with test cases to an assessment")
     @PostMapping("/{assessmentId}/questions")
-    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<QuestionResponse>> addQuestion(
             @PathVariable UUID assessmentId,
             @Valid @RequestBody CreateQuestionRequest request) {
@@ -47,7 +47,7 @@ public class AdminQuestionController {
 
     @Operation(summary = "Get all questions for an assessment")
     @GetMapping("/{assessmentId}/questions")
-    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<List<QuestionResponse>>> getQuestions(
             @PathVariable UUID assessmentId) {
 
@@ -56,7 +56,7 @@ public class AdminQuestionController {
 
     @Operation(summary = "Update an existing question and its test cases")
     @PutMapping("/questions/{questionId}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<QuestionResponse>> updateQuestion(
             @PathVariable UUID questionId,
             @Valid @RequestBody UpdateQuestionRequest request) {
@@ -67,7 +67,7 @@ public class AdminQuestionController {
 
     @Operation(summary = "Remove a question from an assessment")
     @DeleteMapping("/{assessmentId}/questions/{questionId}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> removeQuestion(
             @PathVariable UUID assessmentId,
             @PathVariable UUID questionId) {

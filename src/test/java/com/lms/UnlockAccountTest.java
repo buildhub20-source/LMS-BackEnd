@@ -15,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
 import java.util.UUID;
 
+@org.junit.jupiter.api.Disabled("Manual development database repair; must never run in automated test suites")
 @SpringBootTest
 @ActiveProfiles("dev")
 class UnlockAccountTest {

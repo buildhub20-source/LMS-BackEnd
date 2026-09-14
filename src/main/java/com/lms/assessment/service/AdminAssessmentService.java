@@ -89,5 +89,17 @@ public interface AdminAssessmentService {
      * Can be updated in any non-ARCHIVED status (DRAFT, PUBLISHED, CLOSED).
      */
     AssessmentResponse toggleResultAnalytics(UUID id, boolean enabled);
+
+    /**
+     * Extend the assessment window deadline by N minutes.
+     * Applicable to DRAFT, PUBLISHED, or CLOSED assessments.
+     */
+    AssessmentResponse extend(UUID id, int minutes);
+
+    /**
+     * Update the assessment schedule window (startTime, endTime).
+     * Applicable to DRAFT, PUBLISHED, or CLOSED assessments.
+     */
+    AssessmentResponse updateSchedule(UUID id, java.time.Instant startTime, java.time.Instant endTime);
 }
 

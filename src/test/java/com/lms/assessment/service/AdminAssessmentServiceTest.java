@@ -48,6 +48,7 @@ class AdminAssessmentServiceTest {
     @Mock private AssessmentQuestionRepository assessmentQuestionRepository;
     @Mock private TestCaseRepository testCaseRepository;
     @Mock private AssessmentMapper assessmentMapper;
+    @Mock private com.lms.assessment.repository.AssessmentAttemptRepository assessmentAttemptRepository;
 
     @InjectMocks
     private AdminAssessmentServiceImpl service;

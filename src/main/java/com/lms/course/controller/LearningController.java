@@ -1,127 +1,110 @@
 package com.lms.course.controller;
 
+import com.lms.common.exception.ApplicationException;
+import com.lms.common.exception.ErrorCode;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.ApiResponse;
+import com.lms.course.dto.request.SaveLearningProgressRequest;
 import com.lms.course.dto.response.CourseResponse;
 import com.lms.course.dto.response.LessonResponse;
-import com.lms.course.entity.Lesson;
 import com.lms.course.mapper.CourseMapper;
 import com.lms.course.repository.LessonRepository;
 import com.lms.course.service.CourseService;
+import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.entity.EnrollmentStatus;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.security.authentication.AuthenticationService;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-/**
- * REST API for student learning course player, lessons, and study progress tracking.
- */
-@Tag(name = "Learning")
 @RestController
 @RequestMapping("/api/v1/learning/courses")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('COURSE_VIEW') or hasAnyRole('STUDENT', 'INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
+@Transactional(readOnly = true)
 public class LearningController {
-
     private final CourseService courseService;
     private final LessonRepository lessonRepository;
     private final CourseMapper courseMapper;
     private final EnrollmentRepository enrollmentRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
-    private static final Map<String, ProgressData> PROGRESS_CACHE = new ConcurrentHashMap<>();
-
-    private record ProgressData(int percent, List<String> completedLessonIds, Instant lastUpdated) {}
-
-    @Operation(summary = "Get course details for learning player")
     @GetMapping("/{courseId}")
-    @PreAuthorize("hasAuthority('COURSE_VIEW') or hasRole('STUDENT') or hasRole('INSTRUCTOR') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CourseResponse>> getCourse(@PathVariable UUID courseId) {
         return ResponseEntity.ok(ApiResponse.of(courseService.findById(courseId)));
     }
 
-    @Operation(summary = "Get a single lesson for learning player")
     @GetMapping("/{courseId}/lessons/{lessonId}")
-    @PreAuthorize("hasAuthority('COURSE_VIEW') or hasRole('STUDENT') or hasRole('INSTRUCTOR') or hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<LessonResponse>> getLesson(
-            @PathVariable UUID courseId,
-            @PathVariable UUID lessonId) {
-        Lesson lesson = lessonRepository.findById(lessonId)
+    public ResponseEntity<ApiResponse<LessonResponse>> getLesson(@PathVariable UUID courseId,
+                                                                 @PathVariable UUID lessonId) {
+        courseService.findById(courseId);
+        var lesson = lessonRepository.findById(lessonId)
+                .filter(l -> l.getModule().getCourse().getId().equals(courseId))
                 .orElseThrow(() -> ResourceNotFoundException.of("Lesson", lessonId));
         return ResponseEntity.ok(ApiResponse.of(courseMapper.toLessonResponse(lesson)));
     }
 
-    @Operation(summary = "Get learning progress for a course")
     @GetMapping("/{courseId}/progress")
-    @PreAuthorize("hasAuthority('COURSE_VIEW') or hasRole('STUDENT') or hasRole('INSTRUCTOR') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getProgress(@PathVariable UUID courseId) {
-        UUID userId = AuthenticationService.requirePrincipal().getUserId();
-        String key = userId + ":" + courseId;
-        ProgressData data = PROGRESS_CACHE.get(key);
-
-        int percent = (data != null) ? data.percent() : 0;
-        List<String> completedIds = (data != null) ? data.completedLessonIds() : Collections.emptyList();
-
-        return ResponseEntity.ok(ApiResponse.of(Map.of(
-                "courseId", courseId,
-                "percent", percent,
-                "completedLessonIds", completedIds
-        )));
+        Enrollment enrollment = requireEnrollment(courseId);
+        return ResponseEntity.ok(ApiResponse.of(progress(courseId, enrollment)));
     }
 
-    @Operation(summary = "Save learning progress for a course")
     @PostMapping("/{courseId}/progress")
-    @PreAuthorize("hasAuthority('COURSE_VIEW') or hasRole('STUDENT') or hasRole('INSTRUCTOR') or hasRole('ADMIN')")
-    @SuppressWarnings("unchecked")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> saveProgress(
-            @PathVariable UUID courseId,
-            @RequestBody(required = false) Map<String, Object> payload) {
-        UUID userId = AuthenticationService.requirePrincipal().getUserId();
-        String key = userId + ":" + courseId;
-
-        int percent = 0;
-        List<String> completedLessonIds = Collections.emptyList();
-
-        if (payload != null) {
-            if (payload.containsKey("percent") && payload.get("percent") instanceof Number num) {
-                percent = Math.min(100, Math.max(0, num.intValue()));
-            }
-            if (payload.containsKey("completedLessonIds") && payload.get("completedLessonIds") instanceof List<?> list) {
-                completedLessonIds = list.stream().map(Object::toString).toList();
-            }
+    @Transactional
+    public ResponseEntity<ApiResponse<Map<String, Object>>> saveProgress(@PathVariable UUID courseId,
+            @Valid @RequestBody SaveLearningProgressRequest request) {
+        Enrollment enrollment = requireEnrollment(courseId);
+        var allowed = lessonRepository.findByModuleCourseId(courseId).stream()
+                .map(lesson -> lesson.getId()).collect(Collectors.toSet());
+        if (!allowed.containsAll(request.completedLessonIds())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Completed lessons must belong to this course");
         }
+        enrollment.getCompletedLessonIds().clear();
+        enrollment.getCompletedLessonIds().addAll(request.completedLessonIds());
+        Instant now = Instant.now();
+        enrollment.setLastAccessedAt(now);
+        if (enrollment.getStartedAt() == null) enrollment.setStartedAt(now);
+        boolean complete = !allowed.isEmpty() && request.completedLessonIds().containsAll(allowed);
+        boolean wasComplete = enrollment.getStatus() == EnrollmentStatus.COMPLETED;
+        enrollment.setStatus(complete ? EnrollmentStatus.COMPLETED : EnrollmentStatus.ACTIVE);
+        enrollment.setCompletedAt(complete ? (enrollment.getCompletedAt() == null ? now : enrollment.getCompletedAt()) : null);
+        enrollmentRepository.save(enrollment);
+        if (complete && !wasComplete) {
+            eventPublisher.publishEvent(new com.lms.enrollment.event.EnrollmentCompletedEvent(
+                    enrollment.getStudent().getId(), courseId,
+                    com.lms.platform.runtime.TenantContext.current().map(tenant -> tenant.slug()).orElse(null)));
+        }
+        return ResponseEntity.ok(ApiResponse.of(progress(courseId, enrollment)));
+    }
 
-        PROGRESS_CACHE.put(key, new ProgressData(percent, completedLessonIds, Instant.now()));
+    private Enrollment requireEnrollment(UUID courseId) {
+        courseService.findById(courseId);
+        Enrollment enrollment = enrollmentRepository.findByStudentIdAndCourseId(
+                AuthenticationService.requirePrincipal().getUserId(), courseId)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.ACCESS_DENIED, "You are not enrolled in this course"));
+        if (enrollment.getStatus() != EnrollmentStatus.ACTIVE && enrollment.getStatus() != EnrollmentStatus.COMPLETED) {
+            throw new ApplicationException(ErrorCode.ACCESS_DENIED, "This enrollment is not active");
+        }
+        return enrollment;
+    }
 
-        // Update enrollment timestamps and status
-        final int finalPercent = percent;
-        enrollmentRepository.findByStudentIdAndCourseId(userId, courseId).ifPresent(enrollment -> {
-            enrollment.setLastAccessedAt(Instant.now());
-            if (enrollment.getStartedAt() == null) {
-                enrollment.setStartedAt(Instant.now());
-            }
-            if (finalPercent >= 100 && enrollment.getStatus() != EnrollmentStatus.COMPLETED) {
-                enrollment.setStatus(EnrollmentStatus.COMPLETED);
-                enrollment.setCompletedAt(Instant.now());
-            }
-            enrollmentRepository.save(enrollment);
-        });
-
-        return ResponseEntity.ok(ApiResponse.of(Map.of("success", true, "percent", percent)));
+    private Map<String, Object> progress(UUID courseId, Enrollment enrollment) {
+        var lessonIds = lessonRepository.findByModuleCourseId(courseId).stream()
+                .map(lesson -> lesson.getId()).collect(Collectors.toSet());
+        var completed = new HashSet<>(enrollment.getCompletedLessonIds());
+        completed.retainAll(lessonIds);
+        int percent = lessonIds.isEmpty() ? 0 : (int) Math.round(100.0 * completed.size() / lessonIds.size());
+        return Map.of("courseId", courseId, "percent", percent, "completedLessonIds", completed);
     }
 }

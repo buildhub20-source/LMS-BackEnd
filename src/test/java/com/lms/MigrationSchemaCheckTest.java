@@ -36,6 +36,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 })
 class MigrationSchemaCheckTest {
 
+    /** H2 lacks two PostgreSQL spellings. Adapt only those spellings in a test copy;
+     * production migrations and their recorded Flyway checksums remain unchanged. */
+    @org.springframework.test.context.DynamicPropertySource
+    static void compatibleMigrations(org.springframework.test.context.DynamicPropertyRegistry registry) throws java.io.IOException {
+        java.nio.file.Path source = java.nio.file.Path.of("src/main/resources/db/migration");
+        java.nio.file.Path destination = java.nio.file.Files.createTempDirectory("lms-h2-migrations-");
+        try (var files = java.nio.file.Files.list(source)) {
+            for (var file : files.filter(p -> p.toString().endsWith(".sql")).toList()) {
+                String sql = java.nio.file.Files.readString(file)
+                        .replace("TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE")
+                        .replace("ON CONFLICT (id) DO NOTHING", "ON CONFLICT DO NOTHING");
+                java.nio.file.Files.writeString(destination.resolve(file.getFileName()), sql);
+                destination.resolve(file.getFileName()).toFile().deleteOnExit();
+            }
+        }
+        destination.toFile().deleteOnExit();
+        registry.add("spring.flyway.locations", () -> "filesystem:" + destination.toAbsolutePath().toString().replace('\\', '/'));
+    }
+
+
     @Autowired
     private RoleRepository roleRepository;
 

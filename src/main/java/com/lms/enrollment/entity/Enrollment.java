@@ -69,6 +69,13 @@ public class Enrollment extends Timestamped {
     @Column(name = "last_accessed_at")
     private Instant lastAccessedAt;
 
+    @Builder.Default
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name = "enrollment_completed_lessons",
+            joinColumns = @JoinColumn(name = "enrollment_id"))
+    @Column(name = "lesson_id", nullable = false)
+    private java.util.Set<UUID> completedLessonIds = new java.util.HashSet<>();
+
     @Override
     public boolean equals(Object other) {
         if (this == other) return true;

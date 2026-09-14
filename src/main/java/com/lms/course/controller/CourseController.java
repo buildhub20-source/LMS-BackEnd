@@ -88,6 +88,14 @@ public class CourseController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(created));
     }
 
+    @Operation(summary = "Duplicate an existing course and its curriculum into DRAFT status")
+    @PostMapping("/{id}/duplicate")
+    @PreAuthorize("hasAuthority('COURSE_CREATE')")
+    public ResponseEntity<ApiResponse<CourseResponse>> duplicate(@PathVariable UUID id) {
+        CourseResponse duplicated = courseService.duplicate(id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(duplicated, "Course duplicated successfully"));
+    }
+
     @Operation(summary = "Update course metadata")
     @PatchMapping("/{id}")
     @PreAuthorize("hasAuthority('COURSE_UPDATE')")

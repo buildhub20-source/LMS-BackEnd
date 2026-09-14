@@ -91,6 +91,11 @@ public interface AdminAssessmentService {
     AssessmentResponse toggleResultAnalytics(UUID id, boolean enabled);
 
     /**
+     * Duplicate an existing assessment, its sections, and questions into a new DRAFT assessment.
+     */
+    AssessmentResponse duplicate(UUID id, UUID createdBy);
+
+    /**
      * Extend the assessment window deadline by N minutes.
      * Applicable to DRAFT, PUBLISHED, or CLOSED assessments.
      */

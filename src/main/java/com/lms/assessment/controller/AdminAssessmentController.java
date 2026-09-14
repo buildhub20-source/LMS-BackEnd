@@ -55,7 +55,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Create a new assessment (saved as DRAFT)")
     @PostMapping
-    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> create(
             @Valid @RequestBody CreateAssessmentRequest request) {
 
@@ -71,7 +71,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "List all assessments (optionally filtered by status)")
     @GetMapping
-    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<PageResponse<AssessmentSummaryResponse>>> list(
             @RequestParam(required = false) AssessmentStatus status,
             Pageable pageable) {
@@ -85,7 +85,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Get full details of one assessment")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.of(assessmentService.findById(id)));
     }
@@ -96,7 +96,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Update a DRAFT assessment")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> update(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssessmentRequest request) {
@@ -111,7 +111,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Delete a DRAFT assessment")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ASSESSMENT_DELETE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_DELETE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
         assessmentService.delete(id);
         return ResponseEntity.ok(ApiResponse.message("Assessment deleted"));
@@ -123,7 +123,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Publish a DRAFT assessment (makes it visible to students)")
     @PostMapping("/{id}/publish")
-    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> publish(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.publish(id), "Assessment published successfully"));
@@ -135,7 +135,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Move a PUBLISHED assessment back to DRAFT for further editing")
     @PostMapping("/{id}/unpublish")
-    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> unpublish(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.unpublish(id), "Assessment moved back to DRAFT"));
@@ -147,7 +147,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Close a PUBLISHED assessment — stops accepting new attempts")
     @PostMapping("/{id}/close")
-    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> close(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.close(id), "Assessment closed successfully"));
@@ -159,7 +159,7 @@ public class AdminAssessmentController {
 
     @Operation(summary = "Archive an assessment — hides it from all listing UIs")
     @PostMapping("/{id}/archive")
-    @PreAuthorize("hasAuthority('ASSESSMENT_DELETE')")
+    @PreAuthorize("hasAuthority('ASSESSMENT_DELETE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> archive(@PathVariable UUID id) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));

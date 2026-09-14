@@ -94,5 +94,17 @@ public interface AdminAssessmentService {
      * Duplicate an existing assessment, its sections, and questions into a new DRAFT assessment.
      */
     AssessmentResponse duplicate(UUID id, UUID createdBy);
+
+    /**
+     * Extend the assessment window deadline by N minutes.
+     * Applicable to DRAFT, PUBLISHED, or CLOSED assessments.
+     */
+    AssessmentResponse extend(UUID id, int minutes);
+
+    /**
+     * Update the assessment schedule window (startTime, endTime).
+     * Applicable to DRAFT, PUBLISHED, or CLOSED assessments.
+     */
+    AssessmentResponse updateSchedule(UUID id, java.time.Instant startTime, java.time.Instant endTime);
 }
 

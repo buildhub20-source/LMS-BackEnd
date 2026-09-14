@@ -65,6 +65,16 @@ public class AdminAssessmentController {
                 .body(ApiResponse.of(response, "Assessment created successfully"));
     }
 
+    @Operation(summary = "Duplicate an assessment, sections, and questions into DRAFT status")
+    @PostMapping("/{id}/duplicate")
+    @PreAuthorize("hasAuthority('ASSESSMENT_CREATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentResponse>> duplicate(@PathVariable UUID id) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        AssessmentResponse response = assessmentService.duplicate(id, principal.getUserId());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.of(response, "Assessment duplicated successfully"));
+    }
+
     // ---------------------------------------------------------------
     // GET /api/v1/admin/assessments
     // ---------------------------------------------------------------

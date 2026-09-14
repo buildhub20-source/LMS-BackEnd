@@ -46,4 +46,7 @@ public interface CourseService {
 
     /** Returns courses the given student is enrolled in (for /courses/mine). */
     Page<CourseResponse> getMyEnrolledCourses(UUID studentId, Pageable pageable);
+
+    /** Clone course metadata, modules, and lessons into a new DRAFT course. */
+    CourseResponse duplicate(UUID id);
 }

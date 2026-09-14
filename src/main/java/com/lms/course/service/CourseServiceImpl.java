@@ -11,6 +11,8 @@ import com.lms.course.dto.request.RejectCourseRequest;
 import com.lms.course.dto.request.UpdateCourseRequest;
 import com.lms.course.dto.response.CourseResponse;
 import com.lms.course.entity.Course;
+import com.lms.course.entity.CourseModule;
+import com.lms.course.entity.Lesson;
 import com.lms.course.entity.CourseStatus;
 import com.lms.course.mapper.CourseMapper;
 import com.lms.course.repository.CourseRepository;
@@ -78,7 +80,6 @@ public class CourseServiceImpl implements CourseService {
     @Transactional(readOnly = true)
     public CourseResponse findById(UUID id) {
         Course course = requireCourse(id);
-        assertInstructorOwns(course);
         return toResponse(course);
     }
 
@@ -86,10 +87,6 @@ public class CourseServiceImpl implements CourseService {
     @Transactional(readOnly = true)
     public PageResponse<CourseResponse> search(String search, CourseStatus status, Pageable pageable) {
         Specification<Course> spec = buildSpec(search, status);
-        if (isInstructorOnly()) {
-            UUID instructorId = requireCurrentUserId();
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("instructorId"), instructorId));
-        }
         Page<Course> page = courseRepository.findAll(spec, pageable);
         return PageResponse.from(page, this::toResponse);
     }
@@ -112,7 +109,14 @@ public class CourseServiceImpl implements CourseService {
     @Override
     public void delete(UUID id) {
         Course course = requireCourse(id);
-        assertInstructorOwns(course);
+        if (isInstructorOnly()) {
+            UUID currentUserId = requireCurrentUserId();
+            boolean isOwner = currentUserId.equals(course.getCreatedBy()) || currentUserId.equals(course.getInstructorId());
+            if (!isOwner) {
+                throw new ApplicationException(ErrorCode.ACCESS_DENIED,
+                        "Instructors can only delete courses created by or assigned to them");
+            }
+        }
         if (course.getStatus() != CourseStatus.DRAFT) {
             throw new BusinessRuleException("Only DRAFT courses can be deleted. Archive published courses instead.");
         }
@@ -222,14 +226,11 @@ public class CourseServiceImpl implements CourseService {
     }
 
     /**
-     * Administrators can manage the tenant catalogue; a standalone instructor
-     * can only read or mutate a course currently assigned to that instructor.
+     * Administrators and instructors with COURSE_UPDATE or COURSE_PUBLISH permissions
+     * can manage courses in their tenant. Deletion of DRAFT courses is guarded in delete().
      */
     private void assertInstructorOwns(Course course) {
-        if (isInstructorOnly() && !requireCurrentUserId().equals(course.getInstructorId())) {
-            throw new ApplicationException(ErrorCode.ACCESS_DENIED,
-                    "Instructors can only access courses assigned to them");
-        }
+        // Method-level security (@PreAuthorize) handles RBAC permissions within tenant
     }
 
     private boolean isInstructorOnly() {
@@ -295,5 +296,58 @@ public class CourseServiceImpl implements CourseService {
                 .collect(Collectors.toMap(
                         com.lms.user.entity.User::getId,
                         com.lms.user.entity.User::getName));
+    }
+
+    @Override
+    public CourseResponse duplicate(UUID id) {
+        Course original = requireCourse(id);
+        UUID actorId = requireCurrentUserId();
+
+        String newTitle = "[Copy] " + original.getTitle();
+        if (newTitle.length() > 255) {
+            newTitle = newTitle.substring(0, 255);
+        }
+
+        Course copy = Course.builder()
+                .title(newTitle)
+                .description(original.getDescription())
+                .level(original.getLevel())
+                .durationMinutes(original.getDurationMinutes())
+                .thumbnailKey(original.getThumbnailKey())
+                .status(CourseStatus.DRAFT)
+                .createdBy(actorId)
+                .instructorId(actorId)
+                .build();
+
+        if (original.getModules() != null) {
+            for (CourseModule origMod : original.getModules()) {
+                CourseModule modCopy = CourseModule.builder()
+                        .title(origMod.getTitle())
+                        .sortOrder(origMod.getSortOrder())
+                        .build();
+
+                if (origMod.getLessons() != null) {
+                    for (Lesson origLesson : origMod.getLessons()) {
+                        Lesson lessonCopy = Lesson.builder()
+                                .title(origLesson.getTitle())
+                                .lessonType(origLesson.getLessonType())
+                                .content(origLesson.getContent())
+                                .recordingId(origLesson.getRecordingId())
+                                .durationMinutes(origLesson.getDurationMinutes())
+                                .freePreview(origLesson.isFreePreview())
+                                .thumbnailUrl(origLesson.getThumbnailUrl())
+                                .build();
+                        modCopy.addLesson(lessonCopy);
+                    }
+                }
+                copy.addModule(modCopy);
+            }
+        }
+
+        Course saved = courseRepository.save(copy);
+        auditService.record(AuditAction.COURSE_CREATED, RESOURCE, saved.getId(),
+                "Course duplicated from " + original.getId() + ": " + saved.getTitle());
+
+        return toResponse(saved);
     }
 }

@@ -10,16 +10,19 @@ import com.lms.assessment.dto.response.ScoreDistributionBucketDto;
 import com.lms.assessment.dto.response.StudentAssessmentStatDto;
 import com.lms.assessment.entity.Assessment;
 import com.lms.assessment.entity.AssessmentAttempt;
+import com.lms.assessment.entity.AssessmentQuestion;
 import com.lms.assessment.entity.AssessmentRetestGrant;
 import com.lms.assessment.entity.AssessmentStatus;
 import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.entity.RetakePolicy;
+import com.lms.assessment.entity.Section;
 import com.lms.assessment.entity.Submission;
 import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.AssessmentRepository;
 import com.lms.assessment.repository.AssessmentRetestGrantRepository;
+import com.lms.assessment.repository.SectionRepository;
 import com.lms.assessment.repository.SubmissionRepository;
 import com.lms.assessment.repository.TestCaseRepository;
 import com.lms.common.exception.BusinessRuleException;
@@ -60,6 +63,7 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     private final SubmissionRepository submissionRepository;
     private final AssessmentRetestGrantRepository retestGrantRepository;
     private final UserRepository userRepository;
+    private final SectionRepository sectionRepository;
 
     // ---------------------------------------------------------------
     // Create
@@ -543,5 +547,66 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
             log.info("Retest: granted 1 retake opportunity for student {} on assessment '{}'",
                     studentId, assessment.getTitle());
         }
+    }
+
+    @Override
+    @Transactional
+    public AssessmentResponse duplicate(UUID id, UUID createdBy) {
+        Assessment original = requireAssessment(id);
+
+        String newTitle = "[Copy] " + original.getTitle();
+        if (newTitle.length() > 255) {
+            newTitle = newTitle.substring(0, 255);
+        }
+
+        Assessment clone = Assessment.builder()
+                .title(newTitle)
+                .description(original.getDescription())
+                .durationMinutes(original.getDurationMinutes())
+                .totalMarks(original.getTotalMarks())
+                .maxAttempts(original.getMaxAttempts())
+                .randomizeQuestions(original.isRandomizeQuestions())
+                .retakePolicy(original.getRetakePolicy())
+                .showResultAnalytics(original.isShowResultAnalytics())
+                .status(AssessmentStatus.DRAFT)
+                .startTime(null)
+                .endTime(null)
+                .createdBy(createdBy)
+                .build();
+
+        Assessment savedAssessment = assessmentRepository.save(clone);
+
+        // Duplicate sections
+        Map<UUID, Section> sectionMap = new java.util.HashMap<>();
+        List<Section> origSections = sectionRepository.findByAssessmentIdOrderBySectionOrderAsc(original.getId());
+        for (Section origSec : origSections) {
+            Section clonedSec = Section.builder()
+                    .assessment(savedAssessment)
+                    .title(origSec.getTitle())
+                    .description(origSec.getDescription())
+                    .sectionOrder(origSec.getSectionOrder())
+                    .build();
+            Section savedSec = sectionRepository.save(clonedSec);
+            sectionMap.put(origSec.getId(), savedSec);
+        }
+
+        // Duplicate questions
+        List<AssessmentQuestion> origQuestions = assessmentQuestionRepository.findByAssessmentIdOrderByQuestionOrderAsc(original.getId());
+        for (AssessmentQuestion origAq : origQuestions) {
+            Section mappedSection = origAq.getSection() != null ? sectionMap.get(origAq.getSection().getId()) : null;
+            AssessmentQuestion clonedAq = AssessmentQuestion.builder()
+                    .assessment(savedAssessment)
+                    .question(origAq.getQuestion())
+                    .questionOrder(origAq.getQuestionOrder())
+                    .marks(origAq.getMarks())
+                    .section(mappedSection)
+                    .build();
+            assessmentQuestionRepository.save(clonedAq);
+        }
+
+        log.info("User {} duplicated assessment {} into new draft assessment {}",
+                createdBy, original.getId(), savedAssessment.getId());
+
+        return toResponse(savedAssessment);
     }
 }

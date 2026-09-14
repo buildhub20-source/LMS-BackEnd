@@ -89,5 +89,10 @@ public interface AdminAssessmentService {
      * Can be updated in any non-ARCHIVED status (DRAFT, PUBLISHED, CLOSED).
      */
     AssessmentResponse toggleResultAnalytics(UUID id, boolean enabled);
+
+    /**
+     * Duplicate an existing assessment, its sections, and questions into a new DRAFT assessment.
+     */
+    AssessmentResponse duplicate(UUID id, UUID createdBy);
 }
 

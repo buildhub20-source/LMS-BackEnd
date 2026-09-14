@@ -278,8 +278,9 @@ public class CurriculumService {
         UUID currentUserId = AuthenticationService.requirePrincipal().getUserId();
         boolean isAdmin = AuthenticationService.requirePrincipal().getRoles().contains("ADMIN") || 
                           AuthenticationService.requirePrincipal().getRoles().contains("SUPER_ADMIN");
+        boolean isInstructor = AuthenticationService.requirePrincipal().getRoles().contains("INSTRUCTOR");
 
-        if (!isAdmin && !currentUserId.equals(course.getCreatedBy()) && !currentUserId.equals(course.getInstructorId())) {
+        if (!isAdmin && !isInstructor && !currentUserId.equals(course.getCreatedBy()) && !currentUserId.equals(course.getInstructorId())) {
             throw new ApplicationException(ErrorCode.ACCESS_DENIED, "You do not have permission to edit this course curriculum");
         }
         return course;

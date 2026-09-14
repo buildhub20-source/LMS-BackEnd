@@ -78,6 +78,17 @@ public class CampusResourceController {
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 
+    @Operation(summary = "Direct multipart file upload to Cloudflare R2")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('RESOURCE_CREATE') or hasRole('INSTRUCTOR') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<PresignedResourceUploadUrlResponse>> uploadDirect(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestParam(value = "category", required = false) String category) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        PresignedResourceUploadUrlResponse response = resourceService.uploadFileDirect(file, category, principal);
+        return ResponseEntity.ok(ApiResponse.of(response));
+    }
+
     @Operation(summary = "Persist campus resource metadata after file upload")
     @PostMapping
     @PreAuthorize("hasAuthority('RESOURCE_CREATE') or hasRole('INSTRUCTOR') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
@@ -133,6 +144,8 @@ public class CampusResourceController {
             switch (resource.getFileType().toUpperCase()) {
                 case "PDF" -> mediaType = MediaType.APPLICATION_PDF;
                 case "ZIP" -> mediaType = MediaType.parseMediaType("application/zip");
+                case "DOCX" -> mediaType = MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+                case "DOC" -> mediaType = MediaType.parseMediaType("application/msword");
                 case "MD", "TXT" -> mediaType = MediaType.TEXT_PLAIN;
                 case "JSON" -> mediaType = MediaType.APPLICATION_JSON;
                 default -> mediaType = MediaType.APPLICATION_OCTET_STREAM;
@@ -145,7 +158,9 @@ public class CampusResourceController {
                 .filename(resource.getFileName(), StandardCharsets.UTF_8)
                 .build());
 
-        if (resource.getFileSizeBytes() != null && resource.getFileSizeBytes() > 0) {
+        if (s3Stream.response() != null && s3Stream.response().contentLength() != null && s3Stream.response().contentLength() > 0) {
+            headers.setContentLength(s3Stream.response().contentLength());
+        } else if (resource.getFileSizeBytes() != null && resource.getFileSizeBytes() > 0) {
             headers.setContentLength(resource.getFileSizeBytes());
         }
 

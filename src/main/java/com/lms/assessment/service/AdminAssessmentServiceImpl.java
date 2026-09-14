@@ -38,6 +38,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -183,6 +185,44 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         assessment.setShowResultAnalytics(enabled);
         Assessment saved = assessmentRepository.save(assessment);
         log.info("Assessment {} result analytics visibility updated to: {}", id, enabled);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public AssessmentResponse extend(UUID id, int minutes) {
+        if (minutes <= 0) {
+            throw new IllegalArgumentException("Extension minutes must be greater than 0");
+        }
+        Assessment assessment = requireAssessment(id);
+        Instant now = Instant.now();
+        Instant currentEnd = assessment.getEndTime();
+        Instant newEnd;
+        if (currentEnd == null || currentEnd.isBefore(now)) {
+            newEnd = now.plus(minutes, ChronoUnit.MINUTES);
+        } else {
+            newEnd = currentEnd.plus(minutes, ChronoUnit.MINUTES);
+        }
+        assessment.setEndTime(newEnd);
+        if (assessment.getStatus() == AssessmentStatus.CLOSED) {
+            assessment.setStatus(AssessmentStatus.PUBLISHED);
+        }
+        Assessment saved = assessmentRepository.save(assessment);
+        log.info("Assessment {} extended by {} minutes. New deadline: {}", id, minutes, newEnd);
+        return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public AssessmentResponse updateSchedule(UUID id, Instant startTime, Instant endTime) {
+        Assessment assessment = requireAssessment(id);
+        if (startTime != null && endTime != null && endTime.isBefore(startTime)) {
+            throw new IllegalArgumentException("End time must be after start time");
+        }
+        assessment.setStartTime(startTime);
+        assessment.setEndTime(endTime);
+        Assessment saved = assessmentRepository.save(assessment);
+        log.info("Assessment {} schedule updated: start={}, end={}", id, startTime, endTime);
         return toResponse(saved);
     }
 

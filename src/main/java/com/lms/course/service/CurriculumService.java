@@ -32,10 +32,15 @@ public class CurriculumService {
     private final com.lms.common.service.StorageService storageService;
     private final CourseMapper courseMapper;
     private final com.lms.user.repository.UserRepository userRepository;
+    private final com.lms.enrollment.repository.EnrollmentRepository enrollmentRepository;
 
     public com.lms.course.dto.response.CourseAnalyticsResponse getCourseAnalytics(UUID courseId) {
         Course course = getCourseAndCheckAccess(courseId);
-        java.util.List<com.lms.user.entity.User> students = userRepository.findUsersByRoleName(com.lms.role.constants.SystemRoles.STUDENT);
+        var enrollments = enrollmentRepository.findByCourseIdAndStatus(courseId, com.lms.enrollment.entity.EnrollmentStatus.ACTIVE);
+        enrollments = new java.util.ArrayList<>(enrollments);
+        enrollments.addAll(enrollmentRepository.findByCourseIdAndStatus(courseId, com.lms.enrollment.entity.EnrollmentStatus.COMPLETED));
+        var lessonIds = course.getModules().stream().flatMap(module -> module.getLessons().stream())
+                .map(lesson -> lesson.getId()).collect(java.util.stream.Collectors.toSet());
 
         int totalLessons = 0;
         if (course.getModules() != null) {
@@ -46,7 +51,7 @@ public class CurriculumService {
             }
         }
 
-        long totalEnrolled = students.size();
+        long totalEnrolled = enrollments.size();
         long attendedCount = 0;
         long nonAttendedCount = 0;
         long completedCount = 0;
@@ -60,17 +65,18 @@ public class CurriculumService {
         long bucket51to75 = 0;
         long bucket76to100 = 0;
 
-        for (com.lms.user.entity.User student : students) {
-            int mockCompleted = Math.min(totalLessons, Math.abs(student.getId().hashCode()) % (totalLessons > 0 ? totalLessons + 1 : 1));
-            double completionPct = totalLessons > 0 ? ((double) mockCompleted / totalLessons) * 100.0 : 0.0;
+        for (var enrollment : enrollments) {
+            var student = enrollment.getStudent();
+            int completedLessons = (int) enrollment.getCompletedLessonIds().stream().filter(lessonIds::contains).count();
+            double completionPct = totalLessons > 0 ? ((double) completedLessons / totalLessons) * 100.0 : 0.0;
             completionPct = Math.round(completionPct * 10.0) / 10.0;
 
             String status;
-            if (mockCompleted == 0) {
+            if (completedLessons == 0) {
                 status = "NON_ATTENDED";
                 nonAttendedCount++;
                 bucket0to25++;
-            } else if (mockCompleted >= totalLessons && totalLessons > 0) {
+            } else if (completedLessons >= totalLessons && totalLessons > 0) {
                 status = "COMPLETED";
                 completedCount++;
                 attendedCount++;
@@ -93,10 +99,10 @@ public class CurriculumService {
                 student.getName(),
                 student.getEmail(),
                 status,
-                mockCompleted,
+                completedLessons,
                 totalLessons,
                 completionPct,
-                student.getUpdatedAt() != null ? student.getUpdatedAt() : student.getCreatedAt()
+                enrollment.getLastAccessedAt()
             ));
         }
 
@@ -196,7 +202,7 @@ public class CurriculumService {
         getCourseAndCheckAccess(courseId);
 
         Lesson lesson = lessonRepository.findById(lessonId)
-                .filter(l -> l.getModule().getId().equals(moduleId))
+                .filter(l -> l.getModule().getId().equals(moduleId) && l.getModule().getCourse().getId().equals(courseId))
                 .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Lesson not found"));
 
         lesson.setTitle(request.getTitle());
@@ -264,7 +270,7 @@ public class CurriculumService {
         getCourseAndCheckAccess(courseId);
         
         Lesson lesson = lessonRepository.findById(lessonId)
-                .filter(l -> l.getModule().getId().equals(moduleId))
+                .filter(l -> l.getModule().getId().equals(moduleId) && l.getModule().getCourse().getId().equals(courseId))
                 .orElseThrow(() -> new ApplicationException(ErrorCode.RESOURCE_NOT_FOUND, "Lesson not found"));
                 
         lesson.getModule().removeLesson(lesson);

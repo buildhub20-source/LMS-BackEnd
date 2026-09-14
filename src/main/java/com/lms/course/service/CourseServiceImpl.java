@@ -79,6 +79,16 @@ public class CourseServiceImpl implements CourseService {
     public CourseResponse findById(UUID id) {
         Course course = requireCourse(id);
         assertInstructorOwns(course);
+        var roles = AuthenticationService.requirePrincipal().getRoles();
+        if (roles.contains(SystemRoles.STUDENT) && !roles.contains(SystemRoles.ADMIN)
+                && !roles.contains("SUPER_ADMIN") && !roles.contains(SystemRoles.INSTRUCTOR)) {
+            var enrollment = enrollmentRepository.findByStudentIdAndCourseId(requireCurrentUserId(), id)
+                    .orElseThrow(() -> new ApplicationException(ErrorCode.ACCESS_DENIED, "You are not enrolled in this course"));
+            if (enrollment.getStatus() != com.lms.enrollment.entity.EnrollmentStatus.ACTIVE
+                    && enrollment.getStatus() != com.lms.enrollment.entity.EnrollmentStatus.COMPLETED) {
+                throw new ApplicationException(ErrorCode.ACCESS_DENIED, "This enrollment is not active");
+            }
+        }
         return toResponse(course);
     }
 
@@ -206,7 +216,12 @@ public class CourseServiceImpl implements CourseService {
         return enrollments.map(enrollment -> {
             Course course = enrollment.getCourse();
             Map<UUID, String> names = resolveNames(List.of(course));
-            return courseMapper.toResponse(course, names);
+            CourseResponse response = courseMapper.toResponse(course, names);
+            var lessonIds = course.getModules().stream().flatMap(module -> module.getLessons().stream())
+                    .map(lesson -> lesson.getId()).collect(Collectors.toSet());
+            long completed = enrollment.getCompletedLessonIds().stream().filter(lessonIds::contains).count();
+            response.setProgressPercent(lessonIds.isEmpty() ? 0 : (int) Math.round(100.0 * completed / lessonIds.size()));
+            return response;
         });
     }
 

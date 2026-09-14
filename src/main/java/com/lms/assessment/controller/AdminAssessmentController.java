@@ -1,7 +1,9 @@
 package com.lms.assessment.controller;
 
 import com.lms.assessment.dto.request.CreateAssessmentRequest;
+import com.lms.assessment.dto.request.ExtendAssessmentRequest;
 import com.lms.assessment.dto.request.UpdateAssessmentRequest;
+import com.lms.assessment.dto.request.UpdateScheduleRequest;
 import com.lms.assessment.dto.response.AssessmentAnalyticsResponse;
 import com.lms.assessment.dto.response.AssessmentResponse;
 import com.lms.assessment.dto.response.AssessmentSummaryResponse;
@@ -177,6 +179,36 @@ public class AdminAssessmentController {
             @RequestParam(name = "enabled", required = false, defaultValue = "true") boolean enabled) {
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.toggleResultAnalytics(id, enabled), "Result analytics visibility updated"));
+    }
+
+    // ---------------------------------------------------------------
+    // POST /api/v1/admin/assessments/{id}/extend
+    // ---------------------------------------------------------------
+
+    @Operation(summary = "Extend assessment window deadline by N minutes")
+    @PostMapping("/{id}/extend")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentResponse>> extend(
+            @PathVariable UUID id,
+            @Valid @RequestBody ExtendAssessmentRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.of(assessmentService.extend(id, request.minutes()), "Assessment deadline extended"));
+    }
+
+    // ---------------------------------------------------------------
+    // PATCH /api/v1/admin/assessments/{id}/schedule
+    // ---------------------------------------------------------------
+
+    @Operation(summary = "Update assessment schedule window (startTime / endTime)")
+    @PatchMapping("/{id}/schedule")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AssessmentResponse>> updateSchedule(
+            @PathVariable UUID id,
+            @RequestBody UpdateScheduleRequest request) {
+
+        return ResponseEntity.ok(
+                ApiResponse.of(assessmentService.updateSchedule(id, request.startTime(), request.endTime()), "Schedule updated"));
     }
 
     // ---------------------------------------------------------------

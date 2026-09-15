@@ -83,6 +83,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     private final AssessmentMapper assessmentMapper;
     private final QuestionMapper questionMapper;
     private final com.lms.common.service.StorageService storageService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Override
     public PageResponse<AssessmentSummaryResponse> listPublished(Pageable pageable) {
@@ -319,6 +320,21 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         }
 
         log.info("Student {} successfully submitted attempt {} (status set to SUBMITTED in DB, auto-score: {})", studentId, attemptId, autoScore);
+
+        int maxScore = attempt.getAssessment().getTotalMarks();
+        int currentScore = attempt.getScore() != null ? attempt.getScore() : 0;
+        boolean passed = maxScore > 0 && (currentScore * 100.0 / maxScore >= 50.0);
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new com.lms.gamification.event.AssessmentCompletedEvent(
+                    studentId,
+                    attempt.getAssessment().getId(),
+                    attemptId,
+                    currentScore,
+                    passed,
+                    maxScore
+            ));
+        }
+
         allSubmissions = submissionRepository.findByAttemptIdOrderByQuestionIdAsc(attemptId);
         return buildAttemptDetail(attempt, allSubmissions);
     }

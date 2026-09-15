@@ -99,10 +99,9 @@ class MigrationSchemaCheckTest {
         assertThat(admin.getPermissions()).hasSameSizeAs(permissionRepository.findAll());
 
         Role student = roleRepository.findByNameWithPermissions("STUDENT").orElseThrow();
-        // V6 grants COURSE_VIEW; V8 adds ASSESSMENT_VIEW.
         assertThat(student.getPermissions())
                 .extracting("name")
-                .containsExactlyInAnyOrder("COURSE_VIEW", "ASSESSMENT_VIEW");
+                .containsExactlyInAnyOrder("COURSE_VIEW", "ASSESSMENT_VIEW", "CERTIFICATE_VIEW", "RESOURCE_VIEW", "GAMIFICATION_VIEW");
     }
 
     @Test

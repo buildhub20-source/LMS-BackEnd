@@ -70,6 +70,8 @@ public class LearningController {
         if (!allowed.containsAll(request.completedLessonIds())) {
             throw new ApplicationException(ErrorCode.VALIDATION_FAILED, "Completed lessons must belong to this course");
         }
+        // Capture previously completed lessons for delta computation
+        var previouslyCompleted = new HashSet<>(enrollment.getCompletedLessonIds());
         enrollment.getCompletedLessonIds().clear();
         enrollment.getCompletedLessonIds().addAll(request.completedLessonIds());
         Instant now = Instant.now();
@@ -84,6 +86,13 @@ public class LearningController {
             eventPublisher.publishEvent(new com.lms.enrollment.event.EnrollmentCompletedEvent(
                     enrollment.getStudent().getId(), courseId,
                     com.lms.platform.runtime.TenantContext.current().map(tenant -> tenant.slug()).orElse(null)));
+        }
+        // Publish gamification events for newly completed lessons
+        var newlyCompleted = new HashSet<>(request.completedLessonIds());
+        newlyCompleted.removeAll(previouslyCompleted);
+        UUID studentId = enrollment.getStudent().getId();
+        for (UUID lessonId : newlyCompleted) {
+            eventPublisher.publishEvent(new com.lms.gamification.event.LessonCompletedEvent(studentId, lessonId, courseId));
         }
         return ResponseEntity.ok(ApiResponse.of(progress(courseId, enrollment)));
     }

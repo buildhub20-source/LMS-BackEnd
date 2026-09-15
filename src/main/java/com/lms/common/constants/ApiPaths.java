@@ -28,6 +28,10 @@ public final class ApiPaths {
     public static final String ORGANIZATION = API_V1 + "/organization";
     public static final String ADMIN_AUDIT_LOGS = API_V1 + "/admin/audit-logs";
 
+    // Gamification module
+    public static final String GAMIFICATION       = API_V1 + "/gamification";
+    public static final String ADMIN_GAMIFICATION = API_V1 + "/admin/gamification";
+
     /** Global control-plane APIs. These are never served from a tenant database. */
     public static final String PLATFORM    = API_V1 + "/platform";
 

@@ -171,9 +171,10 @@ class UnlockAccountTest {
                         }
 
                         if (studentRoleId != null) {
-                            st.executeUpdate("INSERT INTO lms.user_role (user_id, role_id) VALUES ('" + studentId + "', '" + studentRoleId + "') ON CONFLICT DO NOTHING");
+                            st.executeUpdate("DELETE FROM lms.user_role WHERE user_id = '" + studentId + "'");
+                            st.executeUpdate("INSERT INTO lms.user_role (user_id, role_id) VALUES ('" + studentId + "', '" + studentRoleId + "')");
                         }
-                        System.out.println("Student jeisurya15@gmail.com successfully verified and enrolled with STUDENT role.");
+                        System.out.println("Student jeisurya15@gmail.com successfully reset to exclusively STUDENT role.");
                     }
                 } catch (Exception e) {
                     System.out.println("Tenant error: " + e.getMessage());

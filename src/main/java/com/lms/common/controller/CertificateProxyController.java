@@ -38,6 +38,33 @@ public class CertificateProxyController {
         return forward("/api/v1/certificates/" + id + "/download", request);
     }
 
+    @GetMapping("/verify/{serialNumber}")
+    public ResponseEntity<byte[]> verify(@PathVariable String serialNumber, HttpServletRequest request) {
+        String tenantSlug = TenantContext.current().map(t -> t.slug()).orElse(null);
+        String path = (tenantSlug != null)
+                ? "/api/v1/public/tenants/" + tenantSlug + "/verify/" + serialNumber
+                : "/api/v1/public/verify/" + serialNumber;
+        return forwardPublic(path, request);
+    }
+
+    private ResponseEntity<byte[]> forwardPublic(String path, HttpServletRequest request) {
+        if (!config.isEnabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Certificate service is not enabled");
+        HttpHeaders headers = new HttpHeaders();
+        TenantContext.current().ifPresent(tenant -> headers.set("X-Tenant-Slug", tenant.slug()));
+        try {
+            var response = internalRestTemplate.exchange(config.getBaseUrl().replaceAll("/+$", "") + path,
+                    HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
+            HttpHeaders output = new HttpHeaders();
+            output.setContentType(response.getHeaders().getContentType() == null ? MediaType.APPLICATION_JSON : response.getHeaders().getContentType());
+            output.setCacheControl(CacheControl.noStore());
+            return new ResponseEntity<>(response.getBody(), output, response.getStatusCode());
+        } catch (RestClientResponseException ex) {
+            return ResponseEntity.status(ex.getStatusCode()).contentType(MediaType.APPLICATION_JSON).body(ex.getResponseBodyAsByteArray());
+        } catch (ResourceAccessException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Certificate service is unavailable", ex);
+        }
+    }
+
     private ResponseEntity<byte[]> forward(String path, HttpServletRequest request) {
         if (!config.isEnabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Certificate service is not enabled");
         HttpHeaders headers = new HttpHeaders();

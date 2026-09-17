@@ -47,6 +47,7 @@ public class SecurityConfig {
             ApiPaths.PLATFORM + "/auth/login",
             ApiPaths.PLATFORM + "/announcements/active",
             ApiPaths.ORGANIZATION,
+            ApiPaths.CERTIFICATES + "/verify/**",
             "/error",
             ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)
             "/v3/api-docs/**",

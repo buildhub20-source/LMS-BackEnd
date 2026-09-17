@@ -27,7 +27,13 @@ public final class ApiPaths {
     public static final String ANALYTICS   = API_V1 + "/analytics";
     public static final String ORGANIZATION = API_V1 + "/organization";
     public static final String ADMIN_AUDIT_LOGS = API_V1 + "/admin/audit-logs";
-    public static final String CERTIFICATES = API_V1 + "/certificates";
+
+    // Calendar module — student-facing
+    public static final String STUDENT_CALENDAR = API_V1 + "/student/calendar";
+
+    // Notes & Bookmarks module — student-facing
+    public static final String STUDENT_NOTES     = API_V1 + "/student/notes";
+    public static final String STUDENT_BOOKMARKS = API_V1 + "/student/bookmarks";
 
     // Gamification module
     public static final String GAMIFICATION       = API_V1 + "/gamification";

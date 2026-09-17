@@ -242,11 +242,22 @@ public class CourseServiceImpl implements CourseService {
     }
 
     /**
-     * Administrators and instructors with COURSE_UPDATE or COURSE_PUBLISH permissions
-     * can manage courses in their tenant. Deletion of DRAFT courses is guarded in delete().
+     * Enforces instructor-scoped ownership: if the current principal is an instructor
+     * (not an admin or super-admin), they may only act on courses they created or are
+     * assigned to as instructor. Admins bypass this check and rely solely on the
+     * {@code @PreAuthorize} annotations on the controller layer.
      */
     private void assertInstructorOwns(Course course) {
-        // Method-level security (@PreAuthorize) handles RBAC permissions within tenant
+        if (!isInstructorOnly()) {
+            return; // admins / super-admins are not restricted to ownership
+        }
+        UUID currentUserId = requireCurrentUserId();
+        boolean isOwner = currentUserId.equals(course.getCreatedBy())
+                || currentUserId.equals(course.getInstructorId());
+        if (!isOwner) {
+            throw new ApplicationException(ErrorCode.ACCESS_DENIED,
+                    "Instructors can only manage courses created by or assigned to them");
+        }
     }
 
     private boolean isInstructorOnly() {

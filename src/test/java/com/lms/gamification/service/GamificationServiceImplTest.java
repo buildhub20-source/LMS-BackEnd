@@ -1,8 +1,10 @@
 package com.lms.gamification.service;
 
+import com.lms.common.response.PageResponse;
 import com.lms.gamification.dto.response.*;
 import com.lms.gamification.entity.*;
 import com.lms.gamification.repository.*;
+import com.lms.student.repository.StudentBatchRepository;
 import com.lms.user.entity.User;
 import com.lms.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +44,7 @@ class GamificationServiceImplTest {
     @Mock private MilestoneRepository milestoneRepository;
     @Mock private StudentMilestoneRepository studentMilestoneRepository;
     @Mock private UserRepository userRepository;
+    @Mock private StudentBatchRepository studentBatchRepository;
 
     @InjectMocks
     private GamificationServiceImpl service;
@@ -267,6 +270,34 @@ class GamificationServiceImplTest {
             assertThat(summary.leaderboardRank()).isNull();
             assertThat(summary.currentLevel().title()).isEqualTo("Learner");
             assertThat(summary.levelProgress()).isGreaterThanOrEqualTo(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("batch leaderboard")
+    class BatchLeaderboardTests {
+
+        @Test
+        @DisplayName("includes only learners enrolled in the requested batch")
+        void filtersLeaderboardToBatchMembers() {
+            UUID batchId = UUID.randomUUID();
+            User enrolledStudent = User.builder().id(studentId).name("Enrolled learner").build();
+            UUID otherStudentId = UUID.randomUUID();
+
+            when(studentBatchRepository.findStudentUserIdsByBatchId(batchId)).thenReturn(List.of(studentId));
+            when(userRepository.findAllById(List.of(studentId))).thenReturn(List.of(enrolledStudent));
+            when(pointsLedgerRepository.sumPointsByStudentId(studentId)).thenReturn(25);
+            when(levelRepository.findFirstByMinPointsLessThanEqualOrderByMinPointsDesc(25))
+                    .thenReturn(Optional.of(GamificationLevel.builder()
+                            .levelNumber(1).title("Beginner").minPoints(0).maxPoints(99).build()));
+            when(studentBadgeRepository.countByStudentId(studentId)).thenReturn(0L);
+
+            PageResponse<LeaderboardEntryResponse> leaderboard = service.getLeaderboard("ALL_TIME", batchId, PageRequest.of(0, 10));
+
+            assertThat(leaderboard.getContent()).extracting(LeaderboardEntryResponse::studentId)
+                    .containsExactly(studentId)
+                    .doesNotContain(otherStudentId);
+            verify(userRepository, never()).findAll();
         }
     }
 }

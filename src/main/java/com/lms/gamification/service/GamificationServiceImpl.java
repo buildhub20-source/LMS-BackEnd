@@ -4,6 +4,7 @@ import com.lms.common.response.PageResponse;
 import com.lms.gamification.dto.response.*;
 import com.lms.gamification.entity.*;
 import com.lms.gamification.repository.*;
+import com.lms.student.repository.StudentBatchRepository;
 import com.lms.user.entity.User;
 import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class GamificationServiceImpl implements GamificationService {
     private final MilestoneRepository milestoneRepository;
     private final StudentMilestoneRepository studentMilestoneRepository;
     private final UserRepository userRepository;
+    private final StudentBatchRepository studentBatchRepository;
 
     // ─── Points ─────────────────────────────────────────────────────────────────
 
@@ -379,12 +381,19 @@ public class GamificationServiceImpl implements GamificationService {
                                   String levelTitle, long badgeCount) {}
 
     private List<LeaderboardRaw> buildLeaderboardRaw(Instant since, UUID batchId) {
-        // Get all users — in a tenant-isolated DB this is already scoped
-        List<User> users = userRepository.findAll();
+        // A batch leaderboard must contain only learners enrolled in that batch.
+        // For the unfiltered leaderboard the tenant-isolated user list remains the
+        // source of truth, preserving support for learners who are not in a batch.
+        List<User> users;
+        if (batchId == null) {
+            users = userRepository.findAll();
+        } else {
+            List<UUID> studentIds = studentBatchRepository.findStudentUserIdsByBatchId(batchId);
+            users = studentIds.isEmpty() ? List.of() : userRepository.findAllById(studentIds);
+        }
 
         List<LeaderboardRaw> entries = new ArrayList<>();
         for (User user : users) {
-            // If batchId filter is applied, check membership (via student_batches)
             int totalPoints;
             if (since != null) {
                 totalPoints = pointsLedgerRepository.sumPointsByStudentIdSince(user.getId(), since);

@@ -51,6 +51,13 @@ spring:
     schemas: ${DB_SCHEMA:lms}
     default-schema: ${DB_SCHEMA:lms}
     create-schemas: true
+    # Migration naming convention:
+    #   Legacy (V1–V23):  V<n>__description.sql  – DO NOT add new files in this series.
+    #   Current standard: V<YYYYMMDD>_<sequence>__description.sql
+    #     e.g. V20260917_1000__add_feature.sql
+    #   All new migrations MUST use the date-prefixed format. Flyway orders by
+    #   the full version string, so date-prefixed versions sort after all legacy ones.
+
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:587}

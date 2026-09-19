@@ -34,6 +34,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !request.getRequestURI().startsWith(ApiPaths.API_V1)
                 || request.getRequestURI().startsWith(ApiPaths.PLATFORM)
+                || request.getRequestURI().startsWith(ApiPaths.INTERNAL + "/tenants")
                 || request.getRequestURI().startsWith(ApiPaths.WELL_KNOWN);
     }
 
@@ -46,6 +47,10 @@ public class TenantContextFilter extends OncePerRequestFilter {
         }
         String slug = resolveSlug(request);
         if (slug == null) {
+            if (request.getRequestURI().startsWith(ApiPaths.INTERNAL)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             if (config.isTenantResolutionRequired()) {
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST, "A tenant must be selected");
                 return;

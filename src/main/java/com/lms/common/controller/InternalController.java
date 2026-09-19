@@ -12,7 +12,9 @@ import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.organization.repository.OrganizationSettingsRepository;
 import com.lms.platform.entity.Tenant;
+import com.lms.platform.entity.TenantConfig;
 import com.lms.platform.entity.TenantStatus;
+import com.lms.platform.repository.TenantConfigRepository;
 import com.lms.platform.repository.TenantRepository;
 import com.lms.platform.service.TenantSecretCipher;
 import com.lms.user.repository.UserRepository;
@@ -50,6 +52,7 @@ public class InternalController {
     private final EnrollmentRepository enrollmentRepository;
     private final OrganizationSettingsRepository orgSettingsRepository;
     private final TenantRepository tenantRepository;
+    private final TenantConfigRepository tenantConfigRepository;
     private final TenantSecretCipher tenantSecretCipher;
 
     /**
@@ -127,6 +130,18 @@ public class InternalController {
     // ─── Chat Service Endpoints ────────────────────────────
 
     /**
+     * Returns all active tenants with their database credentials and retention policies.
+     * Used by lms-chat-service periodic retention cleanup job.
+     */
+    @GetMapping("/tenants")
+    public List<InternalTenantDto> getAllActiveTenants() {
+        return tenantRepository.findAll().stream()
+                .filter(t -> t.getStatus() == TenantStatus.ACTIVE)
+                .map(this::toTenantDto)
+                .toList();
+    }
+
+    /**
      * Returns tenant connection credentials by tenant ID.
      * Used by lms-chat-service to connect to tenant databases.
      */
@@ -166,11 +181,19 @@ public class InternalController {
         if (tenant.getStatus() != TenantStatus.ACTIVE) {
             throw new ResourceNotFoundException("Tenant is not active: " + tenant.getSlug());
         }
+        Integer retentionDays = tenantConfigRepository.findByTenantId(tenant.getId())
+                .map(TenantConfig::getChatFileRetentionDays)
+                .orElse(30);
+        if (retentionDays == null || retentionDays < 1) {
+            retentionDays = 30;
+        }
+
         return new InternalTenantDto(
                 tenant.getId(),
                 tenant.getSlug(),
                 tenant.getJdbcUrl(),
                 tenant.getDatabaseUsername(),
-                tenantSecretCipher.decrypt(tenant.getEncryptedDatabasePassword()));
+                tenantSecretCipher.decrypt(tenant.getEncryptedDatabasePassword()),
+                retentionDays);
     }
 }

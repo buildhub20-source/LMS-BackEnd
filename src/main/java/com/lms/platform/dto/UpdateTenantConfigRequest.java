@@ -11,5 +11,6 @@ public record UpdateTenantConfigRequest(
         boolean advancedAnalyticsEnabled,
         boolean customCertificatesEnabled,
         boolean codeEvaluatorEnabled,
-        boolean liveProctoringEnabled
+        boolean liveProctoringEnabled,
+        @Min(1) Integer chatFileRetentionDays
 ) {}

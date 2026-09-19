@@ -278,7 +278,7 @@ public class UserServiceImpl implements UserService {
         if (file != null && !file.isEmpty()) {
             try {
                 String contentType = file.getContentType() != null ? file.getContentType() : "image/png";
-                String key = "avatars/" + user.getId() + "_" + System.currentTimeMillis() + ".png";
+                String key = storageService.scopedKey("avatars/users/" + user.getId() + "_" + System.currentTimeMillis() + ".png");
                 String url = null;
                 try {
                     storageService.uploadFile(key, file.getInputStream(), file.getSize(), contentType);

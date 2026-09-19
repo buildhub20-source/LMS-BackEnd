@@ -15,5 +15,6 @@ public record InternalTenantDto(
         String slug,
         String jdbcUrl,
         String username,
-        String password
+        String password,
+        Integer chatFileRetentionDays
 ) {}

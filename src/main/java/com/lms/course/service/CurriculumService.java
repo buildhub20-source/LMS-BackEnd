@@ -248,7 +248,7 @@ public class CurriculumService {
             extension = originalFilename.substring(extIndex);
         }
 
-        String key = String.format("courses/%s/lessons/%s/thumbnails/%s%s", courseId, lessonId, UUID.randomUUID(), extension);
+        String key = storageService.scopedKey(String.format("courses/%s/lessons/%s/thumbnails/%s%s", courseId, lessonId, UUID.randomUUID(), extension));
         String thumbnailUrl = storageService.getPublicUrl(key);
         if (thumbnailUrl == null || thumbnailUrl.isBlank()) {
             throw new ApplicationException(ErrorCode.INTERNAL_ERROR, "Thumbnail storage is not configured");
@@ -312,7 +312,7 @@ public class CurriculumService {
             extension = request.getFileName().substring(extIndex);
         }
         UUID recordingId = UUID.randomUUID();
-        String key = String.format("videos/%s%s", lessonId, extension);
+        String key = storageService.scopedKey(String.format("courses/%s/lessons/%s/videos/%s%s", courseId, lessonId, recordingId, extension));
 
         // Do this before persisting metadata. A missing R2 configuration should
         // fall back to the direct-upload endpoint without leaving a PENDING row.
@@ -346,7 +346,7 @@ public class CurriculumService {
     }
 
     @Transactional
-    public com.lms.course.dto.response.GenerateUploadUrlResponse uploadRecordingDirectly(
+    public com.lms.course.dto.response.GenerateUploadUrlResponse uploadRecordingDirect(
             UUID courseId, UUID moduleId, UUID lessonId,
             org.springframework.web.multipart.MultipartFile file) {
 
@@ -367,7 +367,7 @@ public class CurriculumService {
             extension = originalFilename.substring(extIndex);
         }
         UUID recordingId = UUID.randomUUID();
-        String key = String.format("videos/%s%s", lessonId, extension);
+        String key = storageService.scopedKey(String.format("courses/%s/lessons/%s/videos/%s%s", courseId, lessonId, recordingId, extension));
 
         com.lms.course.entity.CourseRecording recording = new com.lms.course.entity.CourseRecording();
         recording.setId(recordingId);

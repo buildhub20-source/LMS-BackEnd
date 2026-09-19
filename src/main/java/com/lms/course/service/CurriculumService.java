@@ -346,7 +346,7 @@ public class CurriculumService {
     }
 
     @Transactional
-    public com.lms.course.dto.response.GenerateUploadUrlResponse uploadRecordingDirect(
+    public com.lms.course.dto.response.GenerateUploadUrlResponse uploadRecordingDirectly(
             UUID courseId, UUID moduleId, UUID lessonId,
             org.springframework.web.multipart.MultipartFile file) {
 

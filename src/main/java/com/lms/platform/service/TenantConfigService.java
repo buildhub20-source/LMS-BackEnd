@@ -42,6 +42,7 @@ public class TenantConfigService {
                         .customCertificatesEnabled(true)
                         .codeEvaluatorEnabled(true)
                         .liveProctoringEnabled(false)
+                        .chatFileRetentionDays(30)
                         .build()));
 
         return TenantConfigDto.from(config);
@@ -63,6 +64,9 @@ public class TenantConfigService {
         config.setCustomCertificatesEnabled(request.customCertificatesEnabled());
         config.setCodeEvaluatorEnabled(request.codeEvaluatorEnabled());
         config.setLiveProctoringEnabled(request.liveProctoringEnabled());
+        if (request.chatFileRetentionDays() != null) {
+            config.setChatFileRetentionDays(request.chatFileRetentionDays());
+        }
 
         TenantConfig saved = configRepository.save(config);
 
@@ -73,7 +77,8 @@ public class TenantConfigService {
                 .message("Updated feature flags & quotas: maxUsers=" + request.maxUsers()
                         + ", maxCourses=" + request.maxCourses()
                         + ", AI=" + request.aiFeaturesEnabled()
-                        + ", Proctoring=" + request.liveProctoringEnabled())
+                        + ", Proctoring=" + request.liveProctoringEnabled()
+                        + ", retentionDays=" + config.getChatFileRetentionDays())
                 .createdAt(Instant.now())
                 .build());
 

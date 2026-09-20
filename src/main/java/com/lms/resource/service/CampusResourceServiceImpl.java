@@ -80,7 +80,7 @@ public class CampusResourceServiceImpl implements CampusResourceService {
         String categoryFolder = formatCategoryFolder(request.getCategory());
         String rawName = request.getFileName() != null ? request.getFileName() : "resource_file";
         String sanitizedName = rawName.replaceAll("[^a-zA-Z0-9._-]", "_");
-        String key = String.format("resources/%s/%s", categoryFolder, sanitizedName);
+        String key = storageService.scopedKey(String.format("resources/%s/%s", categoryFolder, sanitizedName));
 
         String uploadUrl = storageService.generatePresignedUploadUrl(key, request.getContentType());
         String publicUrl = storageService.getPublicUrl(key);
@@ -227,7 +227,7 @@ public class CampusResourceServiceImpl implements CampusResourceService {
 
         String sanitizedName = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
         String catFolder = formatCategoryFolder(category);
-        String key = String.format("resources/%s/%s", catFolder, sanitizedName);
+        String key = storageService.scopedKey(String.format("resources/%s/%s", catFolder, sanitizedName));
 
         try {
             storageService.uploadFile(key, file.getInputStream(), file.getSize(), file.getContentType());

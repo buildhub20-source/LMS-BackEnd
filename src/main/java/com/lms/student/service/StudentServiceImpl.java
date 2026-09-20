@@ -234,7 +234,7 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public StudentPhotoUploadUrlResponse generatePhotoUploadUrl(GeneratePhotoUploadUrlRequest request) {
-        String key = "avatars/" + UUID.randomUUID() + extensionOf(request.getFileName());
+        String key = storageService.scopedKey("avatars/students/" + UUID.randomUUID() + extensionOf(request.getFileName()));
 
         return StudentPhotoUploadUrlResponse.builder()
                 .uploadUrl(storageService.generatePresignedUploadUrl(key, request.getMimeType()))

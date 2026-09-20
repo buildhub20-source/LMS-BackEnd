@@ -61,4 +61,8 @@ public class TenantConfig extends Timestamped {
     @Column(name = "live_proctoring_enabled", nullable = false)
     @Builder.Default
     private boolean liveProctoringEnabled = false;
+
+    @Column(name = "chat_file_retention_days", nullable = false)
+    @Builder.Default
+    private Integer chatFileRetentionDays = 30;
 }

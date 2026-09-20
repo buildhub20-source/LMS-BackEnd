@@ -1,6 +1,7 @@
 package com.lms.common.service;
 
 import com.lms.common.config.CloudflareR2Properties;
+import com.lms.platform.runtime.TenantContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -29,6 +30,34 @@ public class StorageService {
         this.s3Client = s3Client;
         this.s3Presigner = s3Presigner;
         this.r2 = r2;
+    }
+
+    /**
+     * Resolves the multi-tenant prefix for object keys.
+     * Guarantees all tenant files are isolated under "tenants/{tenantId}/".
+     */
+    public String tenantPrefix() {
+        return TenantContext.current()
+                .map(tenant -> "tenants/" + tenant.tenantId() + "/")
+                .orElse("tenants/shared/");
+    }
+
+    /**
+     * Ensures an object key is scoped to the current tenant namespace.
+     * If the key already starts with "tenants/", returns it as-is.
+     *
+     * @param path relative path (e.g. "courses/123/video.mp4")
+     * @return scoped key (e.g. "tenants/{tenantId}/courses/123/video.mp4")
+     */
+    public String scopedKey(String path) {
+        if (path == null || path.isBlank()) {
+            return path;
+        }
+        String clean = path.startsWith("/") ? path.substring(1) : path;
+        if (clean.startsWith("tenants/")) {
+            return clean;
+        }
+        return tenantPrefix() + clean;
     }
 
     /**

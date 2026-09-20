@@ -16,6 +16,7 @@ public record TenantConfigDto(
         boolean customCertificatesEnabled,
         boolean codeEvaluatorEnabled,
         boolean liveProctoringEnabled,
+        Integer chatFileRetentionDays,
         Instant updatedAt
 ) {
     public static TenantConfigDto from(TenantConfig config) {
@@ -30,6 +31,7 @@ public record TenantConfigDto(
                 config.isCustomCertificatesEnabled(),
                 config.isCodeEvaluatorEnabled(),
                 config.isLiveProctoringEnabled(),
+                config.getChatFileRetentionDays() != null ? config.getChatFileRetentionDays() : 30,
                 config.getUpdatedAt()
         );
     }

@@ -694,7 +694,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         String contentType = request.contentType() != null && !request.contentType().isBlank()
                 ? request.contentType()
                 : "video/webm";
-        String objectKey = String.format("recordings/%s.webm", attemptId);
+        String objectKey = storageService.scopedKey(String.format("assessments/attempts/%s.webm", attemptId));
 
         String presignedUrl = storageService.generatePresignedUploadUrl(objectKey, contentType);
         String publicUrl = storageService.getPublicUrl(objectKey);
@@ -733,7 +733,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         AssessmentAttempt attempt = requireAttempt(attemptId, studentId);
 
         String contentType = file.getContentType() != null ? file.getContentType() : "video/webm";
-        String objectKey = String.format("assessments/attempts/%s/%s.webm", attemptId, UUID.randomUUID());
+        String objectKey = storageService.scopedKey(String.format("assessments/attempts/%s/%s.webm", attemptId, UUID.randomUUID()));
 
         try {
             storageService.uploadFile(objectKey, file.getInputStream(), file.getSize(), contentType);

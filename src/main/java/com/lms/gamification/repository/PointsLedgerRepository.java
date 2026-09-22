@@ -22,5 +22,12 @@ public interface PointsLedgerRepository extends JpaRepository<PointsLedger, UUID
     @Query("SELECT COALESCE(SUM(p.points), 0) FROM PointsLedger p WHERE p.studentId = :studentId AND p.createdAt >= :since")
     int sumPointsByStudentIdSince(@Param("studentId") UUID studentId, @Param("since") Instant since);
 
+    @Query("SELECT COALESCE(SUM(p.points), 0) FROM PointsLedger p "
+            + "WHERE p.studentId = :studentId AND p.createdAt >= :from AND p.createdAt < :to")
+    int sumPointsByStudentIdBetween(
+            @Param("studentId") UUID studentId,
+            @Param("from") Instant from,
+            @Param("to") Instant to);
+
     long countByStudentIdAndEventType(UUID studentId, String eventType);
 }

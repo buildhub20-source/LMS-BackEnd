@@ -39,6 +39,10 @@ public final class ApiPaths {
     public static final String GAMIFICATION       = API_V1 + "/gamification";
     public static final String ADMIN_GAMIFICATION = API_V1 + "/admin/gamification";
 
+    // Live Classes & Sessions module
+    public static final String LIVE_SESSIONS = API_V1 + "/live-sessions";
+    public static final String INTEGRATIONS  = API_V1 + "/integrations";
+
     /** Global control-plane APIs. These are never served from a tenant database. */
     public static final String PLATFORM    = API_V1 + "/platform";
 

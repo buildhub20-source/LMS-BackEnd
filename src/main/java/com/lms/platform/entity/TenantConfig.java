@@ -65,4 +65,53 @@ public class TenantConfig extends Timestamped {
     @Column(name = "chat_file_retention_days", nullable = false)
     @Builder.Default
     private Integer chatFileRetentionDays = 30;
+
+    // Live session fields
+    @Column(name = "live_classes_enabled", nullable = false)
+    @Builder.Default
+    private boolean liveClassesEnabled = false;
+
+    @Column(name = "max_live_participants", nullable = false)
+    @Builder.Default
+    private Integer maxLiveParticipants = 50;
+
+    @Column(name = "monthly_live_participant_minutes", nullable = false)
+    @Builder.Default
+    private Integer monthlyLiveParticipantMinutes = 1000;
+
+    @Column(name = "max_live_session_duration_minutes", nullable = false)
+    @Builder.Default
+    private Integer maxLiveSessionDurationMinutes = 120;
+
+    @Column(name = "max_concurrent_live_sessions", nullable = false)
+    @Builder.Default
+    private Integer maxConcurrentLiveSessions = 3;
+
+    @Column(name = "recording_enabled", nullable = false)
+    @Builder.Default
+    private boolean recordingEnabled = false;
+
+    @Column(name = "monthly_recording_minutes", nullable = false)
+    @Builder.Default
+    private Integer monthlyRecordingMinutes = 500;
+
+    @Column(name = "attendance_enabled", nullable = false)
+    @Builder.Default
+    private boolean attendanceEnabled = true;
+
+    @Column(name = "live_chat_enabled", nullable = false)
+    @Builder.Default
+    private boolean liveChatEnabled = true;
+
+    @Column(name = "screen_share_enabled", nullable = false)
+    @Builder.Default
+    private boolean screenShareEnabled = true;
+
+    @Column(name = "ai_transcript_enabled", nullable = false)
+    @Builder.Default
+    private boolean aiTranscriptEnabled = false;
+
+    @Column(name = "ai_summary_enabled", nullable = false)
+    @Builder.Default
+    private boolean aiSummaryEnabled = false;
 }

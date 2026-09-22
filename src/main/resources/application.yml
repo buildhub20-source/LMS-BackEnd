@@ -152,6 +152,12 @@ lms:
     enabled: ${CERT_SERVICE_ENABLED:false}
     timeout-ms: ${CERT_SERVICE_TIMEOUT_MS:3000}
 
+  livekit:
+    url: ${LIVEKIT_URL:wss://livekit.cloud.local}
+    api-key: ${LIVEKIT_API_KEY:devkey}
+    api-secret: ${LIVEKIT_API_SECRET:secret12345678901234567890123456789012}
+    token-ttl-minutes: ${LIVEKIT_TOKEN_TTL_MINUTES:120}
+
   # Global control plane. Tenant data is held in a separate cloud database;
   # this database contains only the tenant registry and global administrators.
   platform:

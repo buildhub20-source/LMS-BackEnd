@@ -8,7 +8,11 @@ import com.lms.course.entity.CourseStatus;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.enrollment.entity.EnrollmentStatus;
 import com.lms.assessment.entity.AssessmentStatus;
+import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.repository.AssessmentRepository;
+import com.lms.assessment.repository.AssessmentAttemptRepository;
+import com.lms.gamification.repository.LearningStreakRepository;
+import com.lms.gamification.repository.PointsLedgerRepository;
 import com.lms.invitation.repository.InvitationRepository;
 import com.lms.security.authentication.AuthenticationService;
 import com.lms.user.repository.UserRepository;
@@ -25,8 +29,13 @@ import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.UUID;
 
 /**
@@ -42,7 +51,10 @@ public class AnalyticsController {
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final AssessmentRepository assessmentRepository;
+    private final AssessmentAttemptRepository assessmentAttemptRepository;
     private final InvitationRepository invitationRepository;
+    private final LearningStreakRepository learningStreakRepository;
+    private final PointsLedgerRepository pointsLedgerRepository;
 
     @Operation(summary = "Get admin system-wide analytics overview")
     @GetMapping("/admin")
@@ -145,6 +157,14 @@ public class AnalyticsController {
             if (activeStudents == 0 && totalEnrollments > 0) activeStudents = totalEnrollments;
         }
 
+        // Real average score from submitted assessment attempts
+        var submittedAttempts = assessmentAttemptRepository
+                .findByStudentIdAndStatusOrderByStartedAtDesc(principal.getUserId(), AttemptStatus.SUBMITTED);
+        OptionalDouble avgScore = submittedAttempts.stream()
+                .filter(a -> a.getScore() != null)
+                .mapToInt(a -> a.getScore())
+                .average();
+
         Map<String, Object> data = new HashMap<>();
         data.put("totalStudents", activeStudents);
         data.put("learnerCount", activeStudents);
@@ -152,7 +172,7 @@ public class AnalyticsController {
         data.put("courseCount", publishedCourses);
         data.put("totalEnrollments", totalEnrollments);
         data.put("averageCompletion", percentage(completedStudents, totalEnrollments));
-        data.put("averageScore", 84);
+        data.put("averageScore", avgScore.isPresent() ? (int) Math.round(avgScore.getAsDouble()) : 0);
         data.put("pendingGradingCount", 0);
 
         return ResponseEntity.ok(ApiResponse.of(data));
@@ -166,7 +186,29 @@ public class AnalyticsController {
         long totalEnrollments = enrollmentRepository.countByStudentId(studentId);
         long completedCourses = enrollmentRepository.countByStudentIdAndStatus(studentId, EnrollmentStatus.COMPLETED);
         long inProgressCourses = Math.max(0, totalEnrollments - completedCourses);
-        long estimatedHours = (completedCourses * 8) + (inProgressCourses * 3);
+
+        // Real streak from LearningStreak table
+        int streakDays = learningStreakRepository.findByStudentId(studentId)
+                .map(s -> s.getCurrentStreak())
+                .orElse(0);
+
+        // Real average score from submitted attempts
+        var submittedAttempts = assessmentAttemptRepository
+                .findByStudentIdAndStatusOrderByStartedAtDesc(studentId, AttemptStatus.SUBMITTED);
+        OptionalDouble avgScore = submittedAttempts.stream()
+                .filter(a -> a.getScore() != null)
+                .mapToInt(a -> a.getScore())
+                .average();
+        int assessmentAvgScore = avgScore.isPresent() ? (int) Math.round(avgScore.getAsDouble()) : 0;
+        long assessmentsAttempted = submittedAttempts.size();
+
+        // Estimate hoursLearned from points activity (daily_activity events ≈ 1h each) + completions
+        int earnedPoints = pointsLedgerRepository.sumPointsByStudentId(studentId);
+        long estimatedHours = (completedCourses * 8L) + (inProgressCourses * 3L) + (earnedPoints / 50);
+
+        // Real weekly activity — count distinct days in last 7 days from PointsLedger
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        List<Map<String, Object>> enrollmentTrend = buildWeeklyActivityTrend(studentId, today);
 
         Map<String, Object> data = new HashMap<>();
         data.put("enrolledCourses", totalEnrollments);
@@ -176,21 +218,34 @@ public class AnalyticsController {
         data.put("certificateCount", completedCourses);
         data.put("hoursLearned", estimatedHours);
         data.put("overallProgress", percentage(completedCourses, totalEnrollments));
-        data.put("streakDays", totalEnrollments > 0 ? 4 : 0);
-
-        // Weekly activity trends for chart
-        List<Map<String, Object>> enrollmentTrend = List.of(
-                Map.of("name", "Mon", "hours", totalEnrollments > 0 ? 1.5 : 0),
-                Map.of("name", "Tue", "hours", totalEnrollments > 0 ? 2.0 : 0),
-                Map.of("name", "Wed", "hours", totalEnrollments > 0 ? 0.5 : 0),
-                Map.of("name", "Thu", "hours", totalEnrollments > 0 ? 3.0 : 0),
-                Map.of("name", "Fri", "hours", totalEnrollments > 0 ? 2.5 : 0),
-                Map.of("name", "Sat", "hours", totalEnrollments > 0 ? 1.0 : 0),
-                Map.of("name", "Sun", "hours", totalEnrollments > 0 ? 2.0 : 0)
-        );
+        data.put("streakDays", streakDays);
+        data.put("assessmentsAttempted", assessmentsAttempted);
+        data.put("averageScore", assessmentAvgScore);
         data.put("enrollmentTrend", enrollmentTrend);
 
         return ResponseEntity.ok(ApiResponse.of(data));
+    }
+
+    /**
+     * Builds a 7-day activity trend using real PointsLedger data.
+     * Each day is represented by the total points earned that day.
+     */
+    private List<Map<String, Object>> buildWeeklyActivityTrend(UUID studentId, LocalDate today) {
+        // Monday of current week
+        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        String[] dayNames = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+        List<Map<String, Object>> trend = new ArrayList<>();
+
+        for (int i = 0; i < 7; i++) {
+            LocalDate day = weekStart.plusDays(i);
+            Instant dayStart = day.atStartOfDay(ZoneOffset.UTC).toInstant();
+            Instant nextDayStart = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+            int points = pointsLedgerRepository.sumPointsByStudentIdBetween(studentId, dayStart, nextDayStart);
+            // Rough approximation: 50 pts ≈ 1 hour of activity, capped at 8h
+            double hours = Math.min(8.0, Math.round((points / 50.0) * 10) / 10.0);
+            trend.add(Map.of("name", dayNames[i], "hours", hours, "day", day.toString()));
+        }
+        return trend;
     }
 
     private static int percentage(long numerator, long denominator) {

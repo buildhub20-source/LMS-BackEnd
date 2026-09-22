@@ -68,6 +68,19 @@ public class TenantConfigService {
             config.setChatFileRetentionDays(request.chatFileRetentionDays());
         }
 
+        if (request.liveClassesEnabled() != null) config.setLiveClassesEnabled(request.liveClassesEnabled());
+        if (request.maxLiveParticipants() != null) config.setMaxLiveParticipants(request.maxLiveParticipants());
+        if (request.monthlyLiveParticipantMinutes() != null) config.setMonthlyLiveParticipantMinutes(request.monthlyLiveParticipantMinutes());
+        if (request.maxLiveSessionDurationMinutes() != null) config.setMaxLiveSessionDurationMinutes(request.maxLiveSessionDurationMinutes());
+        if (request.maxConcurrentLiveSessions() != null) config.setMaxConcurrentLiveSessions(request.maxConcurrentLiveSessions());
+        if (request.recordingEnabled() != null) config.setRecordingEnabled(request.recordingEnabled());
+        if (request.monthlyRecordingMinutes() != null) config.setMonthlyRecordingMinutes(request.monthlyRecordingMinutes());
+        if (request.attendanceEnabled() != null) config.setAttendanceEnabled(request.attendanceEnabled());
+        if (request.liveChatEnabled() != null) config.setLiveChatEnabled(request.liveChatEnabled());
+        if (request.screenShareEnabled() != null) config.setScreenShareEnabled(request.screenShareEnabled());
+        if (request.aiTranscriptEnabled() != null) config.setAiTranscriptEnabled(request.aiTranscriptEnabled());
+        if (request.aiSummaryEnabled() != null) config.setAiSummaryEnabled(request.aiSummaryEnabled());
+
         TenantConfig saved = configRepository.save(config);
 
         auditRepository.save(TenantAuditEvent.builder()

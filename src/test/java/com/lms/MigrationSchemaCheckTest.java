@@ -101,7 +101,8 @@ class MigrationSchemaCheckTest {
         Role student = roleRepository.findByNameWithPermissions("STUDENT").orElseThrow();
         assertThat(student.getPermissions())
                 .extracting("name")
-                .containsExactlyInAnyOrder("COURSE_VIEW", "ASSESSMENT_VIEW", "CERTIFICATE_VIEW", "RESOURCE_VIEW", "GAMIFICATION_VIEW");
+                .containsExactlyInAnyOrder("COURSE_VIEW", "ASSESSMENT_VIEW", "CERTIFICATE_VIEW",
+                        "RESOURCE_VIEW", "GAMIFICATION_VIEW", "LIVE_SESSION_VIEW");
     }
 
     @Test

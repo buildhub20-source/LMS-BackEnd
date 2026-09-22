@@ -19,10 +19,15 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID>, J
 
     boolean existsByStudentIdAndCourseId(UUID studentId, UUID courseId);
 
+    boolean existsByStudentIdAndCourseIdAndStatus(UUID studentId, UUID courseId, EnrollmentStatus status);
+
     Optional<Enrollment> findByStudentIdAndCourseId(UUID studentId, UUID courseId);
 
     @Query("SELECT e FROM Enrollment e WHERE e.course.id = :courseId AND e.status = :status")
     java.util.List<Enrollment> findByCourseIdAndStatus(@Param("courseId") UUID courseId, @Param("status") EnrollmentStatus status);
+
+    @Query("SELECT e.course.id FROM Enrollment e WHERE e.student.id = :studentId AND e.status = 'ACTIVE'")
+    List<UUID> findActiveCourseIdsByStudentId(@Param("studentId") UUID studentId);
 
     // Queries for Student
     Page<Enrollment> findByStudentId(UUID studentId, Pageable pageable);

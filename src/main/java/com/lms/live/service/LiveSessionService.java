@@ -291,6 +291,15 @@ public class LiveSessionService {
     }
 
     @Transactional
+    public void leaveSession(UUID sessionId, UUID actorId) {
+        LiveSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> ResourceNotFoundException.of("LiveSession", sessionId));
+        User user = userRepository.findById(actorId)
+                .orElseThrow(() -> ResourceNotFoundException.of("User", actorId));
+        liveAttendanceService.recordParticipantLeft(session, user);
+    }
+
+    @Transactional
     public LiveSessionResponse endSession(UUID sessionId, UUID actorId) {
         LiveSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> ResourceNotFoundException.of("LiveSession", sessionId));

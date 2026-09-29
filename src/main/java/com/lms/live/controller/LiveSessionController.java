@@ -78,6 +78,14 @@ public class LiveSessionController {
         return ResponseEntity.ok(ApiResponse.of(response));
     }
 
+    @PostMapping(ApiPaths.LIVE_SESSIONS + "/{sessionId}/leave")
+    @PreAuthorize("hasAuthority('LIVE_SESSION_VIEW') or hasAnyRole('STUDENT', 'INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<Void> leaveSession(@PathVariable UUID sessionId) {
+        UUID actorId = AuthenticationService.requirePrincipal().getUserId();
+        liveSessionService.leaveSession(sessionId, actorId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping(ApiPaths.LIVE_SESSIONS + "/{sessionId}/end")
     @PreAuthorize("hasAuthority('LIVE_SESSION_MANAGE') or hasAnyRole('INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<LiveSessionResponse>> endSession(@PathVariable UUID sessionId) {

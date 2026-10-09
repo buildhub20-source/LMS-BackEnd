@@ -293,6 +293,13 @@ public class CourseServiceImpl implements CourseService {
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
             }
+            if (isInstructorOnly()) {
+                UUID currentUserId = requireCurrentUserId();
+                predicates.add(cb.or(
+                        cb.equal(root.get("createdBy"), currentUserId),
+                        cb.equal(root.get("instructorId"), currentUserId)
+                ));
+            }
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
     }

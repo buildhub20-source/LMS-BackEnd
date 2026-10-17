@@ -13,6 +13,11 @@ RUN mvn -B -q clean package -DskipTests
 # --- Runtime stage -----------------------------------------------------------
 FROM eclipse-temurin:17-jre-jammy AS runtime
 
+# The health check needs an HTTP client; do not rely on the base image shipping one.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system lms && useradd --system --gid lms --create-home lms
 
 WORKDIR /app
@@ -26,6 +31,6 @@ ENV JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport"
 ENV SPRING_PROFILES_ACTIVE=prod
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD ["sh", "-c", "wget -q -O - http://localhost:8080/actuator/health | grep -q UP"]
+    CMD ["sh", "-c", "curl -fsS http://localhost:8080/actuator/health | grep -q UP"]
 
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

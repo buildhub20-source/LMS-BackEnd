@@ -146,24 +146,11 @@ public class AnalyticsController {
                 principal.getUserId(), EnrollmentStatus.COMPLETED);
         long publishedCourses = courseRepository.countByInstructorId(principal.getUserId());
 
-        if (publishedCourses == 0) {
-            publishedCourses = courseRepository.countByStatus(CourseStatus.PUBLISHED);
-            if (publishedCourses == 0) publishedCourses = courseRepository.count();
-        }
-        if (totalEnrollments == 0) {
-            totalEnrollments = enrollmentRepository.count();
-            activeStudents = enrollmentRepository.countDistinctStudentsByStatus(EnrollmentStatus.ACTIVE);
-            completedStudents = enrollmentRepository.countByStatus(EnrollmentStatus.COMPLETED);
-            if (activeStudents == 0 && totalEnrollments > 0) activeStudents = totalEnrollments;
-        }
-
-        // Real average score from submitted assessment attempts
-        var submittedAttempts = assessmentAttemptRepository
-                .findByStudentIdAndStatusOrderByStartedAtDesc(principal.getUserId(), AttemptStatus.SUBMITTED);
-        OptionalDouble avgScore = submittedAttempts.stream()
-                .filter(a -> a.getScore() != null)
-                .mapToInt(a -> a.getScore())
-                .average();
+        // Only this instructor's own assessments; never the whole institute's.
+        Double avgScore = assessmentAttemptRepository.averageScoreOnAssessmentsCreatedBy(
+                principal.getUserId(), AttemptStatus.SUBMITTED);
+        long pendingGrading = assessmentAttemptRepository.countByAssessment_CreatedByAndStatusAndScoreIsNull(
+                principal.getUserId(), AttemptStatus.SUBMITTED);
 
         Map<String, Object> data = new HashMap<>();
         data.put("totalStudents", activeStudents);
@@ -172,8 +159,8 @@ public class AnalyticsController {
         data.put("courseCount", publishedCourses);
         data.put("totalEnrollments", totalEnrollments);
         data.put("averageCompletion", percentage(completedStudents, totalEnrollments));
-        data.put("averageScore", avgScore.isPresent() ? (int) Math.round(avgScore.getAsDouble()) : 0);
-        data.put("pendingGradingCount", 0);
+        data.put("averageScore", avgScore != null ? (int) Math.round(avgScore) : 0);
+        data.put("pendingGradingCount", pendingGrading);
 
         return ResponseEntity.ok(ApiResponse.of(data));
     }

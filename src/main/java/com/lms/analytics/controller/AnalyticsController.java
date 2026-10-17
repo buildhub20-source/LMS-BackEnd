@@ -189,10 +189,6 @@ public class AnalyticsController {
         int assessmentAvgScore = avgScore.isPresent() ? (int) Math.round(avgScore.getAsDouble()) : 0;
         long assessmentsAttempted = submittedAttempts.size();
 
-        // Estimate hoursLearned from points activity (daily_activity events ≈ 1h each) + completions
-        int earnedPoints = pointsLedgerRepository.sumPointsByStudentId(studentId);
-        long estimatedHours = (completedCourses * 8L) + (inProgressCourses * 3L) + (earnedPoints / 50);
-
         // Real weekly activity — count distinct days in last 7 days from PointsLedger
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         List<Map<String, Object>> enrollmentTrend = buildWeeklyActivityTrend(studentId, today);
@@ -202,8 +198,6 @@ public class AnalyticsController {
         data.put("completedCourses", completedCourses);
         data.put("inProgressCount", inProgressCourses);
         data.put("completedCount", completedCourses);
-        data.put("certificateCount", completedCourses);
-        data.put("hoursLearned", estimatedHours);
         data.put("overallProgress", percentage(completedCourses, totalEnrollments));
         data.put("streakDays", streakDays);
         data.put("assessmentsAttempted", assessmentsAttempted);
@@ -228,9 +222,8 @@ public class AnalyticsController {
             Instant dayStart = day.atStartOfDay(ZoneOffset.UTC).toInstant();
             Instant nextDayStart = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
             int points = pointsLedgerRepository.sumPointsByStudentIdBetween(studentId, dayStart, nextDayStart);
-            // Rough approximation: 50 pts ≈ 1 hour of activity, capped at 8h
-            double hours = Math.min(8.0, Math.round((points / 50.0) * 10) / 10.0);
-            trend.add(Map.of("name", dayNames[i], "hours", hours, "day", day.toString()));
+            // Points actually earned that day; learning time is not tracked.
+            trend.add(Map.of("name", dayNames[i], "points", points, "day", day.toString()));
         }
         return trend;
     }

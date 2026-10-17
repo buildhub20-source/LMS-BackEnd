@@ -38,13 +38,31 @@ public class CertificateProxyController {
         return forward("/api/v1/certificates/" + id + "/download", request);
     }
 
+    /** Public: anyone holding a certificate's serial (e.g. from its QR code) can check it. */
+    @GetMapping("/verify/{serialNumber}")
+    public ResponseEntity<byte[]> verify(@PathVariable String serialNumber) {
+        if (!SERIAL.matcher(serialNumber).matches()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Certificate not found");
+        }
+        String path = TenantContext.current()
+                .map(tenant -> "/api/v1/public/tenants/" + tenant.slug() + "/verify/" + serialNumber)
+                .orElse("/api/v1/public/verify/" + serialNumber);
+        return send(path, new HttpHeaders());
+    }
+
+    private static final java.util.regex.Pattern SERIAL = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{1,64}");
+
     private ResponseEntity<byte[]> forward(String path, HttpServletRequest request) {
-        if (!config.isEnabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Certificate service is not enabled");
         HttpHeaders headers = new HttpHeaders();
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authorization == null) throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         headers.set(HttpHeaders.AUTHORIZATION, authorization);
         TenantContext.current().ifPresent(tenant -> headers.set("X-Tenant-Slug", tenant.slug()));
+        return send(path, headers);
+    }
+
+    private ResponseEntity<byte[]> send(String path, HttpHeaders headers) {
+        if (!config.isEnabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Certificate service is not enabled");
         try {
             var response = internalRestTemplate.exchange(config.getBaseUrl().replaceAll("/+$", "") + path,
                     HttpMethod.GET, new HttpEntity<>(headers), byte[].class);

@@ -10,7 +10,8 @@ import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.course.repository.CourseRepository;
 import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.repository.EnrollmentRepository;
-import com.lms.organization.repository.OrganizationSettingsRepository;
+import com.lms.organization.entity.OrganizationSettings;
+import com.lms.organization.service.OrganizationSettingsService;
 import com.lms.platform.entity.Tenant;
 import com.lms.platform.entity.TenantConfig;
 import com.lms.platform.entity.TenantStatus;
@@ -50,7 +51,7 @@ public class InternalController {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final OrganizationSettingsRepository orgSettingsRepository;
+    private final OrganizationSettingsService organizationSettingsService;
     private final TenantRepository tenantRepository;
     private final TenantConfigRepository tenantConfigRepository;
     private final TenantSecretCipher tenantSecretCipher;
@@ -112,19 +113,13 @@ public class InternalController {
      */
     @GetMapping("/org-settings")
     public InternalOrgSettingsDto getOrgSettings() {
-        return orgSettingsRepository.findFirstBy()
-                .map(o -> new InternalOrgSettingsDto(
-                        o.getName(),
-                        o.getDomain(),
-                        o.getLogoUrl(),
-                        o.getPrimaryColor(),
-                        o.getSupportEmail()))
-                .orElseGet(() -> new InternalOrgSettingsDto(
-                        "Acme Learning Portal",
-                        "lms.local",
-                        null,
-                        "#10b981",
-                        "support@lms.local"));
+        OrganizationSettings o = organizationSettingsService.current();
+        return new InternalOrgSettingsDto(
+                o.getName(),
+                o.getDomain(),
+                o.getLogoUrl(),
+                o.getPrimaryColor() != null ? o.getPrimaryColor() : OrganizationSettingsService.DEFAULT_PRIMARY_COLOR,
+                o.getSupportEmail());
     }
 
     // ─── Chat Service Endpoints ────────────────────────────

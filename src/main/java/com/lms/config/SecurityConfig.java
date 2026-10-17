@@ -46,7 +46,6 @@ public class SecurityConfig {
             ApiPaths.AUTH + "/accept-invitation",
             ApiPaths.PLATFORM + "/auth/login",
             ApiPaths.PLATFORM + "/announcements/active",
-            ApiPaths.ORGANIZATION,
             "/error",
             ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)
             ApiPaths.INTEGRATIONS + "/livekit/webhook",
@@ -85,6 +84,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        // Branding is shown on the sign-in page; only reading it is public.
+                        .requestMatchers(HttpMethod.GET, ApiPaths.ORGANIZATION).permitAll()
                         .requestMatchers(INTERNAL_ENDPOINTS)
                         .hasAuthority(ServiceKeyAuthFilter.INTERNAL_SERVICE_AUTHORITY)
                         .requestMatchers(ApiPaths.PLATFORM + "/**").hasAuthority("PLATFORM_ADMIN")

@@ -36,6 +36,20 @@ lms:
   security:
     jwt:
       secret: ${JWT_SECRET}
+  # No defaults: a missing value must stop startup, not fall back to a dev key.
+  internal:
+    service-key: ${SERVICE_KEY_SECRET}
+  livekit:
+    url: ${LIVEKIT_URL}
+    api-key: ${LIVEKIT_API_KEY}
+    api-secret: ${LIVEKIT_API_SECRET}
+
+# The API map is not public in production.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 logging:
   level:

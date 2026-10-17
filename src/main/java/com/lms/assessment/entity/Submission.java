@@ -89,6 +89,10 @@ public class Submission {
     @Column(name = "submitted_at")
     private Instant submittedAt;
 
+    /** Marks awarded for this answer once graded; null until then. */
+    @Column(name = "score")
+    private Integer score;
+
     @Override
     public boolean equals(Object other) {
         if (this == other) return true;

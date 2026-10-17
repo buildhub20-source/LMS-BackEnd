@@ -1,8 +1,11 @@
 package com.lms.assessment.controller;
 
+import com.lms.assessment.dto.request.AiSuggestionRequest;
 import com.lms.assessment.dto.request.GradeSubmissionRequest;
+import com.lms.assessment.dto.response.AiGradingSuggestionResponse;
 import com.lms.assessment.dto.response.AttemptDetailResponse;
 import com.lms.assessment.dto.response.SubmissionResponse;
+import com.lms.assessment.service.AiGradingService;
 import com.lms.assessment.service.GradingService;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
@@ -32,6 +35,7 @@ import java.util.UUID;
 public class GradingController {
 
     private final GradingService gradingService;
+    private final AiGradingService aiGradingService;
 
     @Operation(summary = "List pending submissions requiring manual evaluation")
     @GetMapping("/pending")
@@ -53,5 +57,22 @@ public class GradingController {
         AttemptDetailResponse response = gradingService.gradeSubmission(
                 attemptId, request, principal.getUserId(), administrator);
         return ResponseEntity.ok(ApiResponse.of(response, "Submission graded successfully"));
+    }
+
+    @Operation(summary = "Ask the AI for a grading suggestion on a coding answer (instructor reviews it before saving)")
+    @PostMapping("/submissions/{submissionId}/ai-suggestion")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AiGradingSuggestionResponse>> requestAiSuggestion(
+            @PathVariable UUID submissionId,
+            @RequestBody(required = false) AiSuggestionRequest request) {
+        UUID rubricId = request == null ? null : request.rubricId();
+        return ResponseEntity.ok(ApiResponse.of(aiGradingService.suggest(submissionId, rubricId)));
+    }
+
+    @Operation(summary = "The latest AI grading suggestion for a coding answer")
+    @GetMapping("/submissions/{submissionId}/ai-suggestion")
+    @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<AiGradingSuggestionResponse>> latestAiSuggestion(@PathVariable UUID submissionId) {
+        return ResponseEntity.ok(ApiResponse.of(aiGradingService.latest(submissionId)));
     }
 }

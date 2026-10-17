@@ -78,6 +78,8 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
     private final QuestionOptionRepository questionOptionRepository;
     private final SubmissionRepository submissionRepository;
     private final RubricScoreRepository rubricScoreRepository;
+    private final com.lms.assessment.repository.AiGradingResultRepository aiGradingResultRepository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final AssessmentRetestGrantRepository retestGrantRepository;
     private final UserRepository userRepository;
     private final AssessmentMapper assessmentMapper;
@@ -479,26 +481,6 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                         ));
                     }
                 }
-                if (rEvals.isEmpty() && q.getQuestionType() == QuestionType.CODING) {
-                    int marks = aq.getMarks() > 0 ? aq.getMarks() : 10;
-                    int m1 = Math.max(1, (int) Math.round(marks * 0.4));
-                    int m2 = Math.max(1, (int) Math.round(marks * 0.3));
-                    int m3 = Math.max(1, (int) Math.round(marks * 0.2));
-                    int m4 = Math.max(1, marks - (m1 + m2 + m3));
-                    boolean isAcc = sub != null && "ACCEPTED".equalsIgnoreCase(sub.getStatus());
-                    rEvals.add(new AssessmentResultReportResponse.RubricEvaluationDto(
-                            UUID.randomUUID(), "Functional Correctness & Test Suite", isAcc ? m1 : 0, m1,
-                            isAcc ? "All automated test cases passed successfully." : "Automated assertions failed or unattempted."));
-                    rEvals.add(new AssessmentResultReportResponse.RubricEvaluationDto(
-                            UUID.randomUUID(), "Algorithm Design & Efficiency", isAcc ? m2 : 0, m2,
-                            isAcc ? "Runtime performance adheres to target constraints." : "Execution complexity exceeded or non-optimal."));
-                    rEvals.add(new AssessmentResultReportResponse.RubricEvaluationDto(
-                            UUID.randomUUID(), "Code Modularity & Readability", isAcc ? m3 : 0, m3,
-                            isAcc ? "Clean structure, naming, and indentation." : "Needs refactoring and structured modularity."));
-                    rEvals.add(new AssessmentResultReportResponse.RubricEvaluationDto(
-                            UUID.randomUUID(), "Edge Case Handling", isAcc ? m4 : 0, m4,
-                            isAcc ? "Proper handling of boundary inputs and nulls." : "Boundary checks missing."));
-                }
 
                 // Options (for MCQs)
                 List<QuestionOptionResponse> optResponses = List.of();
@@ -519,26 +501,21 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
 
                 // Test cases (for coding questions)
                 List<AssessmentResultReportResponse.TestCaseResultDto> tcResults = new ArrayList<>();
+                boolean hasCode = sub != null && sub.getSourceCode() != null && !sub.getSourceCode().isBlank();
                 if (q.getQuestionType() == QuestionType.CODING) {
-                    List<TestCase> tcs = testCaseRepository.findByQuestionIdOrderByIdAsc(q.getId());
-                    for (TestCase tc : tcs) {
-                        boolean isAccepted = sub != null && "ACCEPTED".equalsIgnoreCase(sub.getStatus());
-                        String actualOut;
-                        if (isAccepted) {
-                            actualOut = tc.getExpectedOutput();
-                        } else if (sub != null && sub.getSourceCode() != null && !sub.getSourceCode().isBlank()) {
-                            actualOut = "WRONG_ANSWER".equalsIgnoreCase(sub.getStatus())
-                                    ? "Execution returned mismatching output."
-                                    : sub.getStatus();
-                        } else {
-                            actualOut = "(Reference output: " + tc.getExpectedOutput() + ")";
-                        }
+                    // Real results exist only once an instructor has graded the answer with an AI run.
+                    Map<String, com.fasterxml.jackson.databind.JsonNode> ran = gradedTestResults(sub);
+                    for (TestCase tc : testCaseRepository.findByQuestionIdOrderByIdAsc(q.getId())) {
+                        com.fasterxml.jackson.databind.JsonNode r = ran.get(tc.getId().toString());
+                        boolean testPassed = r != null && r.path("passed").asBoolean(false);
+                        String actual = r == null ? null : r.path("actualOutput").asText(null);
+                        // Hidden cases stay hidden: students see only whether they passed.
                         tcResults.add(new AssessmentResultReportResponse.TestCaseResultDto(
                                 tc.getId(),
-                                tc.getInputData(),
-                                tc.getExpectedOutput(),
-                                actualOut,
-                                isAccepted,
+                                tc.isHidden() ? null : tc.getInputData(),
+                                tc.isHidden() ? null : tc.getExpectedOutput(),
+                                tc.isHidden() ? null : actual,
+                                testPassed,
                                 tc.isSample(),
                                 tc.isHidden(),
                                 tc.getWeight()
@@ -546,18 +523,18 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                     }
                 }
 
-                int earned = (sub != null && "ACCEPTED".equalsIgnoreCase(sub.getStatus())) ? aq.getMarks() : 0;
-                String execOutput = sub != null && sub.getSourceCode() != null && !sub.getSourceCode().isBlank()
-                        ? ("ACCEPTED".equalsIgnoreCase(sub.getStatus())
-                                ? "Process completed with exit code 0. All assertions satisfied."
-                                : "Execution status: " + sub.getStatus())
+                int earned;
+                if (sub != null && sub.getScore() != null) {
+                    earned = sub.getScore();
+                } else {
+                    earned = (sub != null && "ACCEPTED".equalsIgnoreCase(sub.getStatus())) ? aq.getMarks() : 0;
+                }
+                String execOutput = hasCode ? null
                         : (attempt == null ? "Ready for evaluation. Run tests to see output." : "No code submitted.");
 
                 String explanation = q.getQuestionType() == QuestionType.MULTIPLE_CHOICE
-                        ? (mcqExplanation.length() > 0 ? mcqExplanation.toString().trim() : "Review standard option definitions.")
-                        : (q.getDescription() != null && !q.getDescription().isBlank()
-                                ? "Official Reference: Optimal solution requires adhering to time limit (" + q.getTimeLimitMs() + "ms) and memory limit (" + q.getMemoryLimitMb() + "MB). Check boundary conditions."
-                                : "Optimal algorithm requires O(N) or O(log N) complexity with boundary checks.");
+                        ? (mcqExplanation.length() > 0 ? mcqExplanation.toString().trim() : null)
+                        : null;
 
                 qResults.add(new AssessmentResultReportResponse.QuestionResultDto(
                         q.getId(),
@@ -894,6 +871,30 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
         );
     }
 
+    /**
+     * Per-test results from the latest AI run, keyed by test case id, once an
+     * instructor has graded the answer. Empty otherwise: no results are invented.
+     */
+    private Map<String, com.fasterxml.jackson.databind.JsonNode> gradedTestResults(Submission sub) {
+        if (sub == null || sub.getScore() == null) {
+            return Map.of();
+        }
+        return aiGradingResultRepository.findFirstBySubmissionIdOrderByCreatedAtDesc(sub.getId())
+                .filter(r -> com.lms.assessment.entity.AiGradingResult.SUGGESTED.equals(r.getStatus()))
+                .map(r -> {
+                    Map<String, com.fasterxml.jackson.databind.JsonNode> byId = new HashMap<>();
+                    try {
+                        for (com.fasterxml.jackson.databind.JsonNode t : objectMapper.readTree(r.getResultJson()).path("testResults")) {
+                            byId.put(t.path("testCaseId").asText(), t);
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Stored AI result {} could not be read", r.getId());
+                    }
+                    return byId;
+                })
+                .orElse(Map.of());
+    }
+
     private int autoGradeMcqSubmissions(AssessmentAttempt attempt, List<Submission> submissions) {
         List<AssessmentQuestion> aqList = assessmentQuestionRepository
                 .findByAssessmentIdOrderByQuestionOrderAsc(attempt.getAssessment().getId());
@@ -920,11 +921,14 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                         if (studentSelected.equals(correctIds)) {
                             autoScore += aq.getMarks();
                             sub.setStatus("ACCEPTED");
+                            sub.setScore(aq.getMarks());
                         } else {
                             sub.setStatus("WRONG_ANSWER");
+                            sub.setScore(0);
                         }
                     } else {
                         sub.setStatus("UNANSWERED");
+                        sub.setScore(0);
                     }
                     updated.add(sub);
                 }

@@ -116,7 +116,7 @@ lms:
     # instead of being sent, which is what dev and test rely on.
     enabled: ${MAIL_ENABLED:false}
     from: ${MAIL_FROM:no-reply@lms.local}
-    from-name: ${MAIL_FROM_NAME:LMS}
+    from-name: ${MAIL_FROM_NAME:GradusMind}
   security:
     jwt:
       secret: ${JWT_SECRET}

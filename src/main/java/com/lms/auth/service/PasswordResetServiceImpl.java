@@ -75,7 +75,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
                 .used(false)
                 .build());
 
-        mailSender.send(new MailMessage(user.getEmail(), "Reset your LMS password", resetBody(user, rawToken)));
+        mailSender.send(new MailMessage(user.getEmail(), "Reset your GradusMind password", resetBody(user, rawToken)));
 
         auditService.record(user.getId(), AuditAction.PASSWORD_RESET_REQUESTED, RESOURCE, user.getId(), null);
     }
@@ -110,7 +110,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
         return """
                 Hello %s,
 
-                A password reset was requested for your LMS account.
+                A password reset was requested for your GradusMind account.
 
                 Reset your password: %s
 

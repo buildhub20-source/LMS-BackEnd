@@ -23,10 +23,10 @@ public class OpenApiConfig {
     public OpenAPI lmsOpenApi(@Value("${spring.application.name:lms-backend}") String applicationName) {
         return new OpenAPI()
                 .info(new Info()
-                        .title("LMS API")
+                        .title("GradusMind API")
                         .version("v1")
                         .description("Learning Management System backend API - " + applicationName)
-                        .contact(new Contact().name("LMS Platform Team"))
+                        .contact(new Contact().name("GradusMind").email("admin@gradusmind.com"))
                         .license(new License().name("Proprietary")))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,

@@ -49,6 +49,7 @@ public class PlatformOverviewService {
                 TenantConnection connection = new TenantConnection(
                         tenant.getId(),
                         tenant.getSlug(),
+                        tenant.getName(),
                         tenant.getJdbcUrl(),
                         tenant.getDatabaseUsername(),
                         password

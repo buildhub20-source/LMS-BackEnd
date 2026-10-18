@@ -67,7 +67,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Tenant is not active");
             return;
         }
-        TenantContext.set(new TenantConnection(tenant.getId(), tenant.getSlug(), tenant.getJdbcUrl(),
+        TenantContext.set(new TenantConnection(tenant.getId(), tenant.getSlug(), tenant.getName(), tenant.getJdbcUrl(),
                 tenant.getDatabaseUsername(), cipher.decrypt(tenant.getEncryptedDatabasePassword())));
         try {
             filterChain.doFilter(request, response);

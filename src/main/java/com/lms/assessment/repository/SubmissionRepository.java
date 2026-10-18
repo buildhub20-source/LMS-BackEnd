@@ -20,6 +20,9 @@ public interface SubmissionRepository extends JpaRepository<Submission, UUID> {
 
     Page<Submission> findByStatusOrderBySubmittedAtDesc(String status, Pageable pageable);
 
+    Page<Submission> findByStatusAndAttempt_Assessment_CreatedByOrderBySubmittedAtDesc(
+            String status, UUID createdBy, Pageable pageable);
+
     /** Guards account deletion: submissions hold a RESTRICT key to users. */
     long countByStudentId(UUID studentId);
 }

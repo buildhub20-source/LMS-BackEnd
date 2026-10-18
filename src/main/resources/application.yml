@@ -152,6 +152,13 @@ lms:
     enabled: ${CERT_SERVICE_ENABLED:false}
     timeout-ms: ${CERT_SERVICE_TIMEOUT_MS:3000}
 
+  # LMS-AI-Service (Claude-powered grading). Off until the service is deployed.
+  ai-service:
+    base-url: ${AI_SERVICE_URL:http://localhost:3003}
+    enabled: ${AI_SERVICE_ENABLED:false}
+    # Grading runs the student's code against every test case; allow for it.
+    timeout-ms: ${AI_SERVICE_TIMEOUT_MS:180000}
+
   livekit:
     url: ${LIVEKIT_URL:wss://livekit.cloud.local}
     api-key: ${LIVEKIT_API_KEY:devkey}

@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "lms.livekit")
 public class LiveKitConfig {
-    private String url = "wss://livekit.cloud.local";
-    private String apiKey = "devkey";
-    private String apiSecret = "secret12345678901234567890123456789012";
+    private String url;
+    private String apiKey;
+    private String apiSecret;
     private int tokenTtlMinutes = 120;
 }

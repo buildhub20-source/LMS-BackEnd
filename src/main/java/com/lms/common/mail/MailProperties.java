@@ -15,5 +15,5 @@ public class MailProperties {
 
     private String from = "no-reply@lms.local";
 
-    private String fromName = "LMS";
+    private String fromName = "GradusMind";
 }

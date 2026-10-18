@@ -172,10 +172,17 @@ public class InvitationServiceImpl implements InvitationService {
         String expiresAt = Instant.now().plus(policy.getInvitationTtl()).toString()
                 .replace("T", " ").substring(0, 16) + " UTC";
 
+        // Recipients recognise their institute before the platform, so name it when known.
+        String workspace = com.lms.platform.runtime.TenantContext.current()
+                .map(com.lms.platform.runtime.TenantConnection::name)
+                .filter(name -> !name.isBlank())
+                .map(name -> name + " on GradusMind")
+                .orElse("GradusMind");
+
         String body = """
                 Hello %s,
 
-                You've been invited to join the LMS platform as %s.
+                You've been invited to join %s as %s.
 
                 Click the link below to create your password and activate your account:
 
@@ -186,11 +193,12 @@ public class InvitationServiceImpl implements InvitationService {
                 If you did not expect this invitation, you can safely ignore this email.
                 """.formatted(
                 user.getName(),
+                workspace,
                 roleName.toLowerCase(),
                 link,
                 expiresAt);
 
-        mailSender.send(new MailMessage(user.getEmail(), "You're invited to LMS — create your account", body));
+        mailSender.send(new MailMessage(user.getEmail(), "You're invited to " + workspace + " — create your account", body));
     }
 
     private UUID currentActorId() {

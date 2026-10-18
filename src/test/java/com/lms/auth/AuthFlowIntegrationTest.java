@@ -245,8 +245,11 @@ class AuthFlowIntegrationTest {
     void theInvitationEmailCarriesTheAcceptLinkAndNoPassword() throws Exception {
         inviteStudent();
 
-        assertThat(mailSender.lastTo(INVITEE_EMAIL).getBody())
+        var message = mailSender.lastTo(INVITEE_EMAIL);
+        assertThat(message.getSubject()).contains("GradusMind");
+        assertThat(message.getBody())
                 .contains("/auth/accept-invitation?token=")
+                .contains("GradusMind")
                 .doesNotContain("Temporary password:");
     }
 

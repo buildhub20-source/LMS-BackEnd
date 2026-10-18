@@ -4,12 +4,14 @@ import com.lms.common.exception.ApplicationException;
 import com.lms.common.exception.ErrorCode;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.ApiResponse;
+import com.lms.course.dto.request.LearningHeartbeatRequest;
 import com.lms.course.dto.request.SaveLearningProgressRequest;
 import com.lms.course.dto.response.CourseResponse;
 import com.lms.course.dto.response.LessonResponse;
 import com.lms.course.mapper.CourseMapper;
 import com.lms.course.repository.LessonRepository;
 import com.lms.course.service.CourseService;
+import com.lms.course.service.LearningTimeService;
 import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.entity.EnrollmentStatus;
 import com.lms.enrollment.repository.EnrollmentRepository;
@@ -37,6 +39,7 @@ public class LearningController {
     private final LessonRepository lessonRepository;
     private final CourseMapper courseMapper;
     private final EnrollmentRepository enrollmentRepository;
+    private final LearningTimeService learningTimeService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @GetMapping("/{courseId}")
@@ -95,6 +98,18 @@ public class LearningController {
             eventPublisher.publishEvent(new com.lms.gamification.event.LessonCompletedEvent(studentId, lessonId, courseId));
         }
         return ResponseEntity.ok(ApiResponse.of(progress(courseId, enrollment)));
+    }
+
+    /** Lesson-player heartbeat: records time actually spent studying this course. */
+    @PostMapping("/{courseId}/time")
+    @Transactional
+    public ResponseEntity<ApiResponse<Map<String, Object>>> recordTime(@PathVariable UUID courseId,
+            @Valid @RequestBody LearningHeartbeatRequest request) {
+        Enrollment enrollment = requireEnrollment(courseId);
+        Instant now = Instant.now();
+        int credited = learningTimeService.record(enrollment.getStudent().getId(), courseId, request.seconds(), now);
+        enrollment.setLastAccessedAt(now);
+        return ResponseEntity.ok(ApiResponse.of(Map.of("creditedSeconds", credited)));
     }
 
     private Enrollment requireEnrollment(UUID courseId) {

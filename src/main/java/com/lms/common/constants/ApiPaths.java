@@ -41,6 +41,8 @@ public final class ApiPaths {
 
     // Live Classes & Sessions module
     public static final String LIVE_SESSIONS = API_V1 + "/live-sessions";
+    public static final String ANNOUNCEMENTS = API_V1 + "/announcements";
+    public static final String CODE          = API_V1 + "/code";
     public static final String INTEGRATIONS  = API_V1 + "/integrations";
 
     /** Global control-plane APIs. These are never served from a tenant database. */

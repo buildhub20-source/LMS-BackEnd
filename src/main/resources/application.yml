@@ -159,6 +159,13 @@ lms:
     # Grading runs the student's code against every test case; allow for it.
     timeout-ms: ${AI_SERVICE_TIMEOUT_MS:180000}
 
+  # Judge0-compatible sandbox for running Java, Python, C and C++ answers.
+  # Leave CODE_RUNNER_URL blank to keep server-side runs off (see docs/code-runner.md).
+  code-runner:
+    base-url: ${CODE_RUNNER_URL:}
+    api-key: ${CODE_RUNNER_API_KEY:}
+    runs-per-minute: ${CODE_RUNNER_RUNS_PER_MINUTE:30}
+
   livekit:
     url: ${LIVEKIT_URL:wss://livekit.cloud.local}
     api-key: ${LIVEKIT_API_KEY:devkey}

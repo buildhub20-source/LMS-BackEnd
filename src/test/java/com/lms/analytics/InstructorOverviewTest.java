@@ -36,7 +36,8 @@ class InstructorOverviewTest {
     private final AssessmentAttemptRepository attempts = mock(AssessmentAttemptRepository.class);
     private final AnalyticsController controller = new AnalyticsController(
             mock(UserRepository.class), courses, enrollments, mock(AssessmentRepository.class), attempts,
-            mock(InvitationRepository.class), mock(LearningStreakRepository.class), mock(PointsLedgerRepository.class));
+            mock(InvitationRepository.class), mock(LearningStreakRepository.class), mock(PointsLedgerRepository.class),
+            mock(com.lms.course.service.LearningTimeService.class));
 
     @BeforeEach
     void signInAsInstructor() {

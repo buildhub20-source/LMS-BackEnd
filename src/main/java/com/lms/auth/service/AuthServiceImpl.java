@@ -87,7 +87,8 @@ public class AuthServiceImpl implements AuthService {
 
         LmsUserDetails principal;
         try {
-            principal = authenticationService.authenticate(email, request.getPassword());
+            // Reuses the user loaded above; loading it again costs another cloud round trip.
+            principal = authenticationService.authenticate(candidate.orElse(null), email, request.getPassword());
         } catch (ApplicationException ex) {
             loginAttemptService.recordFailure(email, candidateId, ipAddress);
             throw ex;

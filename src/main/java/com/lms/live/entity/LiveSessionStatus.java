@@ -4,5 +4,7 @@ public enum LiveSessionStatus {
     SCHEDULED,
     LIVE,
     ENDED,
-    CANCELLED
+    CANCELLED,
+    /** Its time slot passed without the class being started. */
+    MISSED
 }

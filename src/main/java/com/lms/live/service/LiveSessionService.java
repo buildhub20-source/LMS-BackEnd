@@ -101,8 +101,9 @@ public class LiveSessionService {
         return LiveSessionResponse.from(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LiveSessionResponse> getCourseSessions(UUID courseId, UUID actorId) {
+        expireStaleSessions(resolveTenantId());
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Course", courseId));
         User actor = userRepository.findById(actorId)
@@ -115,13 +116,14 @@ public class LiveSessionService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<LiveSessionResponse> getAllSessions(UUID courseId, String status, UUID actorId) {
         if (courseId != null) {
             return getCourseSessions(courseId, actorId);
         }
 
         UUID tenantId = resolveTenantId();
+        expireStaleSessions(tenantId);
         User user = userRepository.findById(actorId).orElse(null);
         boolean admin = user != null && isAdmin(user);
         boolean instructor = user != null && isInstructor(user);
@@ -155,8 +157,9 @@ public class LiveSessionService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LiveSessionResponse getSession(UUID sessionId, UUID actorId) {
+        expireStaleSessions(resolveTenantId());
         LiveSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> ResourceNotFoundException.of("LiveSession", sessionId));
         User actor = userRepository.findById(actorId)
@@ -193,6 +196,10 @@ public class LiveSessionService {
         }
 
         UUID tenantId = session.getTenantId() != null ? session.getTenantId() : resolveTenantId();
+        expireStaleSessions(tenantId);
+        if (session.getStatus() == LiveSessionStatus.MISSED || session.getStatus() == LiveSessionStatus.ENDED) {
+            throw new BusinessRuleException("This class's time has passed. Schedule a new class to go live.");
+        }
         TenantConfig config = getTenantConfig(tenantId);
 
         if (config != null && !config.isLiveClassesEnabled()) {
@@ -238,6 +245,7 @@ public class LiveSessionService {
 
     @Transactional
     public JoinLiveSessionResponse joinSession(UUID sessionId, UUID actorId) {
+        expireStaleSessions(resolveTenantId());
         LiveSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> ResourceNotFoundException.of("LiveSession", sessionId));
         User user = userRepository.findById(actorId)
@@ -328,6 +336,44 @@ public class LiveSessionService {
         }
 
         return LiveSessionResponse.from(session);
+    }
+
+    /** A class left live this long past its scheduled end is treated as forgotten. */
+    static final Duration LIVE_OVERRUN_GRACE = Duration.ofHours(2);
+
+    /**
+     * Sessions never end on their own when nobody presses "End" (and the LiveKit
+     * webhook is not always reachable), so stale ones are settled whenever
+     * sessions are read or started:
+     * <ul>
+     *   <li>LIVE more than {@link #LIVE_OVERRUN_GRACE} past its scheduled end → ENDED;
+     *       attendance is closed at the scheduled end, not now.</li>
+     *   <li>SCHEDULED and its whole slot has passed → MISSED.</li>
+     * </ul>
+     */
+    void expireStaleSessions(UUID tenantId) {
+        if (tenantId == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        for (LiveSession session : sessionRepository.findOpenEndedBefore(tenantId, now)) {
+            if (session.getStatus() == LiveSessionStatus.SCHEDULED) {
+                session.setStatus(LiveSessionStatus.MISSED);
+                sessionRepository.save(session);
+                log.info("Live session {} marked MISSED (never started)", session.getId());
+            } else if (session.getStatus() == LiveSessionStatus.LIVE
+                    && now.isAfter(session.getScheduledEnd().plus(LIVE_OVERRUN_GRACE))) {
+                Instant endedAt = session.getActualStart() != null && session.getActualStart().isAfter(session.getScheduledEnd())
+                        ? session.getActualStart()
+                        : session.getScheduledEnd();
+                session.setStatus(LiveSessionStatus.ENDED);
+                session.setActualEnd(endedAt);
+                sessionRepository.save(session);
+                liveAttendanceService.closeOpenAttendance(session, endedAt);
+                log.info("Live session {} ended automatically (still live {} after its scheduled end)",
+                        session.getId(), LIVE_OVERRUN_GRACE);
+            }
+        }
     }
 
     private boolean isAdmin(User user) {

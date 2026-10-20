@@ -2,10 +2,13 @@ package com.lms.live.controller;
 
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
+import com.lms.live.dto.CourseAttendanceSummary;
 import com.lms.live.dto.CreateLiveSessionRequest;
 import com.lms.live.dto.JoinLiveSessionResponse;
 import com.lms.live.dto.LiveAttendanceResponse;
 import com.lms.live.dto.LiveSessionResponse;
+import com.lms.live.dto.MyAttendanceResponse;
+import com.lms.live.service.LiveAttendanceReportService;
 import com.lms.live.service.LiveSessionService;
 import com.lms.security.authentication.AuthenticationService;
 import jakarta.validation.Valid;
@@ -23,6 +26,7 @@ import java.util.UUID;
 public class LiveSessionController {
 
     private final LiveSessionService liveSessionService;
+    private final LiveAttendanceReportService attendanceReportService;
 
     @PostMapping(ApiPaths.COURSES + "/{courseId}/live-sessions")
     @PreAuthorize("hasAuthority('LIVE_SESSION_MANAGE') or hasAnyRole('INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
@@ -92,6 +96,22 @@ public class LiveSessionController {
         UUID actorId = AuthenticationService.requirePrincipal().getUserId();
         LiveSessionResponse response = liveSessionService.endSession(sessionId, actorId);
         return ResponseEntity.ok(ApiResponse.of(response));
+    }
+
+    /** Live-class attendance per student and per class for one course. */
+    @GetMapping(ApiPaths.COURSES + "/{courseId}/live-sessions/attendance")
+    @PreAuthorize("hasAuthority('LIVE_SESSION_MANAGE') or hasAnyRole('INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<CourseAttendanceSummary>> getCourseAttendance(@PathVariable UUID courseId) {
+        return ResponseEntity.ok(ApiResponse.of(
+                attendanceReportService.courseSummary(courseId, AuthenticationService.requirePrincipal())));
+    }
+
+    /** The signed-in student's own live-class attendance. */
+    @GetMapping(ApiPaths.LIVE_SESSIONS + "/my-attendance")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<MyAttendanceResponse>> getMyAttendance() {
+        return ResponseEntity.ok(ApiResponse.of(
+                attendanceReportService.myAttendance(AuthenticationService.requirePrincipal().getUserId())));
     }
 
     @GetMapping(ApiPaths.LIVE_SESSIONS + "/{sessionId}/attendance")

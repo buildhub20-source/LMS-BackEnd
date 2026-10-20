@@ -99,7 +99,9 @@ public class CourseServiceImpl implements CourseService {
     public PageResponse<CourseResponse> search(String search, CourseStatus status, Pageable pageable) {
         Specification<Course> spec = buildSpec(search, status);
         Page<Course> page = courseRepository.findAll(spec, pageable);
-        return PageResponse.from(page, this::toResponse);
+        // One name lookup for the whole page rather than one per course.
+        Map<UUID, String> names = resolveNames(page.getContent());
+        return PageResponse.from(page, course -> courseMapper.toResponse(course, names));
     }
 
     @Override

@@ -37,6 +37,9 @@ spring:
     properties:
       hibernate:
         default_schema: ${DB_SCHEMA:lms}
+        # Load lazy collections (course modules, lessons, roles…) for a whole
+        # page in one query instead of one per row; each query is a cloud round trip.
+        default_batch_fetch_size: 64
         jdbc:
           time_zone: UTC
           batch_size: 50

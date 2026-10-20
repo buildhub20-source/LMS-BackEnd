@@ -15,6 +15,10 @@ public interface LiveSessionAttendanceRepository extends JpaRepository<LiveSessi
 
     List<LiveSessionAttendance> findBySessionIdOrderByJoinedAtAsc(UUID sessionId);
 
+    /** All attendance for several sessions in one query, with the user loaded. */
+    @Query("SELECT a FROM LiveSessionAttendance a JOIN FETCH a.user WHERE a.session.id IN :sessionIds")
+    List<LiveSessionAttendance> findBySessionIds(@Param("sessionIds") java.util.Collection<UUID> sessionIds);
+
     Optional<LiveSessionAttendance> findFirstBySessionIdAndUserIdAndLeftAtIsNullOrderByJoinedAtDesc(UUID sessionId, UUID userId);
 
     @Query("SELECT COUNT(a) FROM LiveSessionAttendance a WHERE a.session.id = :sessionId AND a.leftAt IS NULL")

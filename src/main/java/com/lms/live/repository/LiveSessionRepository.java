@@ -27,6 +27,11 @@ public interface LiveSessionRepository extends JpaRepository<LiveSession, UUID> 
 
     Optional<LiveSession> findByRoomName(String roomName);
 
+    /** Scheduled or live classes whose scheduled end is before {@code before}; candidates for expiry. */
+    @Query("SELECT s FROM LiveSession s WHERE s.tenantId = :tenantId AND s.status IN ('SCHEDULED', 'LIVE') "
+            + "AND s.scheduledEnd < :before")
+    List<LiveSession> findOpenEndedBefore(@Param("tenantId") UUID tenantId, @Param("before") java.time.Instant before);
+
     @Query("SELECT COUNT(s) FROM LiveSession s WHERE s.tenantId = :tenantId AND s.status = 'LIVE'")
     long countActiveSessionsByTenantId(@Param("tenantId") UUID tenantId);
 

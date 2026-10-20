@@ -59,6 +59,25 @@ public class LiveAttendanceService {
                 });
     }
 
+    /**
+     * Closes everyone still marked as present when a class is ended
+     * automatically. Time is counted only up to {@code endedAt}, never up to
+     * now, so a forgotten class does not bill days of participant minutes.
+     */
+    @Transactional
+    public void closeOpenAttendance(LiveSession session, Instant endedAt) {
+        attendanceRepository.findBySessionIdOrderByJoinedAtAsc(session.getId()).stream()
+                .filter(record -> record.getLeftAt() == null)
+                .forEach(record -> {
+                    Instant leftAt = record.getJoinedAt().isAfter(endedAt) ? record.getJoinedAt() : endedAt;
+                    long seconds = Math.max(0, Duration.between(record.getJoinedAt(), leftAt).getSeconds());
+                    record.setLeftAt(leftAt);
+                    record.setDurationSeconds(seconds);
+                    attendanceRepository.save(record);
+                    liveUsageService.recordParticipantDuration(session.getTenantId(), seconds);
+                });
+    }
+
     @Transactional(readOnly = true)
     public List<LiveAttendanceResponse> getSessionAttendance(UUID sessionId) {
         return attendanceRepository.findBySessionIdOrderByJoinedAtAsc(sessionId)

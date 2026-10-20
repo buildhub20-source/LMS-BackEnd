@@ -58,9 +58,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Registries reject upper-case names, and github.repository keeps the
+      # owner/repo casing (LMS-BackEnd), so lower-case it once here.
       - name: Resolve image tag
         id: meta
-        run: echo "image=ghcr.io/${{ github.repository }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "REGISTRY_IMAGE=$repo" >> "$GITHUB_ENV"
+          echo "image=$repo:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -70,7 +75,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.meta.outputs.image }}
-            ghcr.io/${{ github.repository }}:latest
+            ${{ env.REGISTRY_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

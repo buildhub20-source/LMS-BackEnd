@@ -3,6 +3,7 @@ package com.lms.analytics.controller;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
 import com.lms.course.repository.CourseRepository;
+import com.lms.course.service.LearningTimeService;
 import com.lms.course.entity.Course;
 import com.lms.course.entity.CourseStatus;
 import com.lms.enrollment.repository.EnrollmentRepository;
@@ -55,6 +56,7 @@ public class AnalyticsController {
     private final InvitationRepository invitationRepository;
     private final LearningStreakRepository learningStreakRepository;
     private final PointsLedgerRepository pointsLedgerRepository;
+    private final LearningTimeService learningTimeService;
 
     @Operation(summary = "Get admin system-wide analytics overview")
     @GetMapping("/admin")
@@ -189,7 +191,7 @@ public class AnalyticsController {
         int assessmentAvgScore = avgScore.isPresent() ? (int) Math.round(avgScore.getAsDouble()) : 0;
         long assessmentsAttempted = submittedAttempts.size();
 
-        // Real weekly activity — count distinct days in last 7 days from PointsLedger
+        // This week, day by day: tracked study time and points earned.
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         List<Map<String, Object>> enrollmentTrend = buildWeeklyActivityTrend(studentId, today);
 
@@ -216,14 +218,21 @@ public class AnalyticsController {
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         String[] dayNames = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
         List<Map<String, Object>> trend = new ArrayList<>();
+        Map<LocalDate, Long> secondsByDay = learningTimeService.secondsByDay(studentId, weekStart, weekStart.plusDays(6));
 
         for (int i = 0; i < 7; i++) {
             LocalDate day = weekStart.plusDays(i);
             Instant dayStart = day.atStartOfDay(ZoneOffset.UTC).toInstant();
             Instant nextDayStart = day.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
             int points = pointsLedgerRepository.sumPointsByStudentIdBetween(studentId, dayStart, nextDayStart);
-            // Points actually earned that day; learning time is not tracked.
-            trend.add(Map.of("name", dayNames[i], "points", points, "day", day.toString()));
+            long seconds = secondsByDay.getOrDefault(day, 0L);
+            // Time measured by lesson-page heartbeats, not estimated.
+            trend.add(Map.of(
+                    "name", dayNames[i],
+                    "day", day.toString(),
+                    "points", points,
+                    "minutes", Math.round(seconds / 60.0),
+                    "hours", Math.round(seconds / 360.0) / 10.0));
         }
         return trend;
     }

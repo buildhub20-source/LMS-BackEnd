@@ -10,6 +10,7 @@ public record SubmissionResponse(
         UUID id,
         UUID attemptId,
         UUID questionId,
+        String questionTitle,
         String language,
         String sourceCode,
         String status,

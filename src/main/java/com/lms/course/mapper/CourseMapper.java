@@ -24,7 +24,7 @@ public class CourseMapper {
         CourseResponse resp = new CourseResponse();
         resp.setId(course.getId());
         resp.setTitle(course.getTitle());
-        resp.setDescription(course.getDescription());
+        resp.setDescription(com.lms.common.util.PublishedContent.description(course.getTitle(), course.getDescription()));
         resp.setStatus(course.getStatus());
         resp.setLevel(course.getLevel());
         resp.setThumbnailKey(course.getThumbnailKey());

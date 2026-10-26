@@ -18,7 +18,7 @@ public interface AssessmentMapper {
 
     @Mapping(source = "assessment.id",              target = "id")
     @Mapping(source = "assessment.title",           target = "title")
-    @Mapping(source = "assessment.description",     target = "description")
+    @Mapping(target = "description", expression = "java(com.lms.common.util.PublishedContent.description(assessment.getTitle(), assessment.getDescription()))")
     @Mapping(source = "assessment.durationMinutes", target = "durationMinutes")
     @Mapping(source = "assessment.totalMarks",      target = "totalMarks")
     @Mapping(source = "assessment.maxAttempts",     target = "maxAttempts")

@@ -62,7 +62,7 @@ public class CalendarService {
                     .title(assessment.getTitle())
                     .description("Duration: " + assessment.getDurationMinutes() + " min · "
                             + assessment.getTotalMarks() + " marks")
-                    .startTime(assessment.getStartTime())
+                    .startTime(assessment.getEndTime() != null ? assessment.getEndTime() : assessment.getStartTime())
                     .endTime(assessment.getEndTime())
                     .referenceId(assessment.getId())
                     .color("blue")
@@ -72,7 +72,7 @@ public class CalendarService {
 
         // 2. Enrollment milestones — courses enrolled, started, completed
         List<Enrollment> enrollments = enrollmentRepository
-                .findByStudentId(studentId, PageRequest.of(0, 50))
+                .findByStudentId(studentId, org.springframework.data.domain.Pageable.unpaged())
                 .getContent();
 
         for (Enrollment enrollment : enrollments) {

@@ -8,6 +8,9 @@ import com.lms.student.dto.request.UpdateBatchRequest;
 import com.lms.student.dto.response.BatchResponse;
 import com.lms.student.entity.BatchStatus;
 import com.lms.student.service.BatchService;
+import com.lms.security.authentication.AuthenticationService;
+import com.lms.security.authentication.LmsUserDetails;
+import org.springframework.security.access.AccessDeniedException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -50,13 +53,16 @@ public class BatchController {
             @RequestParam(required = false) BatchStatus status,
             Pageable pageable) {
 
-        return ResponseEntity.ok(ApiResponse.of(batchService.search(search, status, pageable)));
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        UUID instructorId = (principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN")) ? principal.getUserId() : null;
+        return ResponseEntity.ok(ApiResponse.of(batchService.search(search, status, pageable, instructorId)));
     }
 
     @Operation(summary = "Get a single batch by ID")
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('BATCH_VIEW')")
     public ResponseEntity<ApiResponse<BatchResponse>> findById(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(ApiResponse.of(batchService.findById(id)));
     }
 
@@ -77,6 +83,7 @@ public class BatchController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateBatchRequest request) {
 
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(ApiResponse.of(batchService.update(id, request)));
     }
 
@@ -84,7 +91,18 @@ public class BatchController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('BATCH_DELETE')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         batchService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private void requireInstructorOwnership(UUID id) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        if ((principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN"))) {
+            BatchResponse batch = batchService.findById(id);
+            if (!principal.getUserId().equals(batch.getInstructorId())) {
+                throw new AccessDeniedException("You may only manage your assigned batches");
+            }
+        }
     }
 }

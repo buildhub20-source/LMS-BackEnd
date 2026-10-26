@@ -15,6 +15,7 @@ import com.lms.assessment.repository.AssessmentQuestionRepository;
 import com.lms.assessment.repository.RubricCriterionRepository;
 import com.lms.assessment.repository.RubricScoreRepository;
 import com.lms.assessment.repository.SubmissionRepository;
+import com.lms.assessment.repository.QuestionRepository;
 import com.lms.common.exception.BusinessRuleException;
 import com.lms.common.exception.ResourceNotFoundException;
 import com.lms.common.response.PageResponse;
@@ -48,6 +49,7 @@ public class GradingServiceImpl implements GradingService {
     private final RubricCriterionRepository rubricCriterionRepository;
     private final RubricScoreRepository rubricScoreRepository;
     private final StudentAssessmentService studentAssessmentService;
+    private final QuestionRepository questionRepository;
 
     @Override
     public PageResponse<SubmissionResponse> getPendingSubmissions(Pageable pageable) {
@@ -56,10 +58,15 @@ public class GradingServiceImpl implements GradingService {
                 ? submissionRepository.findByStatusOrderBySubmittedAtDesc(PENDING, pageable)
                 : submissionRepository.findByStatusAndAttempt_Assessment_CreatedByOrderBySubmittedAtDesc(
                         PENDING, principal.getUserId(), pageable);
+        Map<UUID, String> questionTitles = questionRepository.findAllById(
+                        page.getContent().stream().map(Submission::getQuestionId).distinct().toList())
+                .stream()
+                .collect(Collectors.toMap(question -> question.getId(), question -> question.getTitle()));
         return PageResponse.from(page, s -> new SubmissionResponse(
                 s.getId(),
                 s.getAttempt().getId(),
                 s.getQuestionId(),
+                questionTitles.get(s.getQuestionId()),
                 s.getLanguage(),
                 s.getSourceCode(),
                 s.getStatus(),

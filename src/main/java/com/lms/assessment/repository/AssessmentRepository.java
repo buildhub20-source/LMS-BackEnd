@@ -21,6 +21,11 @@ public interface AssessmentRepository extends JpaRepository<Assessment, UUID> {
 
     Page<Assessment> findByStatusOrderByCreatedAtDesc(AssessmentStatus status, Pageable pageable);
 
+    Page<Assessment> findByCreatedByOrderByCreatedAtDesc(UUID createdBy, Pageable pageable);
+
+    Page<Assessment> findByStatusAndCreatedByOrderByCreatedAtDesc(
+            AssessmentStatus status, UUID createdBy, Pageable pageable);
+
     /** Serializes attempt creation so concurrent requests cannot exceed maxAttempts. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select assessment from Assessment assessment where assessment.id = :id")

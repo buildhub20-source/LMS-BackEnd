@@ -110,9 +110,23 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
 
     @Override
     public PageResponse<AssessmentSummaryResponse> list(AssessmentStatus status, Pageable pageable) {
-        Page<Assessment> page = (status != null)
-                ? assessmentRepository.findByStatusOrderByCreatedAtDesc(status, pageable)
-                : assessmentRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return list(status, pageable, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<AssessmentSummaryResponse> list(
+            AssessmentStatus status, Pageable pageable, UUID createdBy) {
+        Page<Assessment> page;
+        if (createdBy != null && status != null) {
+            page = assessmentRepository.findByStatusAndCreatedByOrderByCreatedAtDesc(status, createdBy, pageable);
+        } else if (createdBy != null) {
+            page = assessmentRepository.findByCreatedByOrderByCreatedAtDesc(createdBy, pageable);
+        } else if (status != null) {
+            page = assessmentRepository.findByStatusOrderByCreatedAtDesc(status, pageable);
+        } else {
+            page = assessmentRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
 
         return PageResponse.from(page, assessment ->
                 assessmentMapper.toSummaryResponse(

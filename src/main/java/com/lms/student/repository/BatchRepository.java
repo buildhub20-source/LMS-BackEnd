@@ -17,4 +17,5 @@ public interface BatchRepository extends JpaRepository<Batch, UUID>, JpaSpecific
     List<Batch> findAllByOrderByStartDateDesc();
 
     List<Batch> findByInstructorIdOrderByStartDateDesc(UUID instructorId);
+
 }

@@ -52,6 +52,9 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, UUID>, J
     @Query("SELECT COUNT(e) FROM Enrollment e WHERE e.course.instructorId = :instructorId AND e.status = :status")
     long countByCourseInstructorIdAndStatus(@Param("instructorId") UUID instructorId, @Param("status") EnrollmentStatus status);
 
+    @Query("SELECT COUNT(DISTINCT e.student.id) FROM Enrollment e WHERE e.course.instructorId = :instructorId AND e.status = :status")
+    long countDistinctStudentsByCourseInstructorIdAndStatus(@Param("instructorId") UUID instructorId, @Param("status") EnrollmentStatus status);
+
     @Query("SELECT COUNT(e) FROM Enrollment e WHERE e.course.instructorId = :instructorId")
     long countByCourseInstructorId(@Param("instructorId") UUID instructorId);
     /**

@@ -14,6 +14,12 @@ import java.util.UUID;
 
 public interface AssessmentAttemptRepository extends JpaRepository<AssessmentAttempt, UUID> {
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "assessment")
+    List<AssessmentAttempt> findAllByOrderByStartedAtDesc();
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = "assessment")
+    List<AssessmentAttempt> findByAssessment_CreatedByOrderByStartedAtDesc(UUID instructorId);
+
     List<AssessmentAttempt> findByAssessmentIdAndStudentIdOrderByStartedAtDesc(
             UUID assessmentId, UUID studentId);
 

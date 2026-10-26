@@ -107,6 +107,14 @@ class AiGradingServiceTest {
     }
 
     @Test
+    void missingSuggestionIsAnEmptyResultWithoutCallingAi() {
+        when(results.findFirstBySubmissionIdOrderByCreatedAtDesc(submission.getId())).thenReturn(Optional.empty());
+        assertThat(service.latest(submission.getId())).isNull();
+        verify(results).findFirstBySubmissionIdOrderByCreatedAtDesc(submission.getId());
+        org.mockito.Mockito.verifyNoInteractions(client);
+    }
+
+    @Test
     void sendsTheAnswerAndStoresTheSuggestion() throws Exception {
         when(client.evaluate(any())).thenReturn(objectMapper.readTree("""
                 {"status":"SUGGESTED","score":12.5,"maxScore":15,"testsPassed":1,"testsTotal":2,

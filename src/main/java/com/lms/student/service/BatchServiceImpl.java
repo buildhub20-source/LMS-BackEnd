@@ -86,7 +86,14 @@ public class BatchServiceImpl implements BatchService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<BatchResponse> search(String search, BatchStatus status, Pageable pageable) {
-        Page<Batch> page = batchRepository.findAll(buildSpec(search, status), pageable);
+        return search(search, status, pageable, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<BatchResponse> search(
+            String search, BatchStatus status, Pageable pageable, UUID instructorId) {
+        Page<Batch> page = batchRepository.findAll(buildSpec(search, status, instructorId), pageable);
         return PageResponse.from(page, this::toResponse);
     }
 
@@ -188,7 +195,7 @@ public class BatchServiceImpl implements BatchService {
         return toResponses(List.of(batch)).get(0);
     }
 
-    private Specification<Batch> buildSpec(String search, BatchStatus status) {
+    private Specification<Batch> buildSpec(String search, BatchStatus status, UUID instructorId) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -200,6 +207,9 @@ public class BatchServiceImpl implements BatchService {
             }
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (instructorId != null) {
+                predicates.add(cb.equal(root.get("instructorId"), instructorId));
             }
 
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));

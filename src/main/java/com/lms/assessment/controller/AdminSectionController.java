@@ -4,6 +4,9 @@ import com.lms.assessment.dto.request.CreateSectionRequest;
 import com.lms.assessment.dto.request.UpdateSectionRequest;
 import com.lms.assessment.dto.response.SectionResponse;
 import com.lms.assessment.service.AdminSectionService;
+import com.lms.assessment.service.AdminAssessmentService;
+import com.lms.security.authentication.AuthenticationService;
+import com.lms.security.authentication.LmsUserDetails;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,6 +37,8 @@ import java.util.UUID;
 public class AdminSectionController {
 
     private final AdminSectionService sectionService;
+    private final AdminAssessmentService assessmentService;
+    private final com.lms.assessment.service.AssessmentScope scope;
 
     @Operation(summary = "Create a new section within an assessment")
     @PostMapping("/{assessmentId}/sections")
@@ -41,6 +47,7 @@ public class AdminSectionController {
             @PathVariable UUID assessmentId,
             @Valid @RequestBody CreateSectionRequest request) {
 
+        requireInstructorOwnership(assessmentId);
         SectionResponse response = sectionService.addSection(assessmentId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.of(response, "Section created successfully"));
@@ -52,6 +59,7 @@ public class AdminSectionController {
     public ResponseEntity<ApiResponse<List<SectionResponse>>> getSections(
             @PathVariable UUID assessmentId) {
 
+        requireInstructorOwnership(assessmentId);
         return ResponseEntity.ok(
                 ApiResponse.of(sectionService.getSectionsByAssessmentId(assessmentId)));
     }
@@ -62,6 +70,8 @@ public class AdminSectionController {
     public ResponseEntity<ApiResponse<SectionResponse>> updateSection(
             @PathVariable UUID sectionId,
             @Valid @RequestBody UpdateSectionRequest request) {
+        scope.requireSection(sectionId);
+
 
         return ResponseEntity.ok(
                 ApiResponse.of(sectionService.updateSection(sectionId, request), "Section updated"));
@@ -72,6 +82,8 @@ public class AdminSectionController {
     @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> deleteSection(
             @PathVariable UUID sectionId) {
+        scope.requireSection(sectionId);
+
 
         sectionService.deleteSection(sectionId);
         return ResponseEntity.ok(ApiResponse.message("Section deleted"));
@@ -83,6 +95,9 @@ public class AdminSectionController {
     public ResponseEntity<ApiResponse<Void>> moveQuestionToSection(
             @PathVariable UUID sectionId,
             @PathVariable UUID assessmentQuestionId) {
+        scope.requireAssessmentQuestion(assessmentQuestionId);
+        scope.requireSection(sectionId);
+
 
         sectionService.moveQuestionToSection(assessmentQuestionId, sectionId);
         return ResponseEntity.ok(ApiResponse.message("Question moved to section"));
@@ -93,6 +108,8 @@ public class AdminSectionController {
     @PreAuthorize("hasAuthority('ASSESSMENT_UPDATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> unsectionQuestion(
             @PathVariable UUID assessmentQuestionId) {
+        scope.requireAssessmentQuestion(assessmentQuestionId);
+
 
         sectionService.moveQuestionToSection(assessmentQuestionId, null);
         return ResponseEntity.ok(ApiResponse.message("Question removed from section"));
@@ -106,7 +123,16 @@ public class AdminSectionController {
             @PathVariable UUID questionId,
             @RequestParam(name = "sectionId", required = false) UUID sectionId) {
 
+        requireInstructorOwnership(assessmentId);
         sectionService.moveQuestionByAssessmentAndQuestionId(assessmentId, questionId, sectionId);
         return ResponseEntity.ok(ApiResponse.message(sectionId == null ? "Question moved to unsectioned" : "Question moved to section"));
+    }
+
+    private void requireInstructorOwnership(UUID assessmentId) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        if ((principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN"))
+                && !principal.getUserId().equals(assessmentService.findById(assessmentId).createdBy())) {
+            throw new AccessDeniedException("You may only manage your own assessments");
+        }
     }
 }

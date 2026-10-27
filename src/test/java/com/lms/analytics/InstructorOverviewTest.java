@@ -37,7 +37,9 @@ class InstructorOverviewTest {
     private final AnalyticsController controller = new AnalyticsController(
             mock(UserRepository.class), courses, enrollments, mock(AssessmentRepository.class), attempts,
             mock(InvitationRepository.class), mock(LearningStreakRepository.class), mock(PointsLedgerRepository.class),
-            mock(com.lms.course.service.LearningTimeService.class));
+            mock(com.lms.course.service.LearningTimeService.class),
+            mock(com.lms.instructor.repository.InstructorProfileRepository.class),
+            mock(com.lms.student.repository.StudentProfileRepository.class));
 
     @BeforeEach
     void signInAsInstructor() {
@@ -74,7 +76,7 @@ class InstructorOverviewTest {
     void scoresAndPendingGradingComeFromTheInstructorsOwnAssessments() {
         when(courses.countByInstructorId(instructorId)).thenReturn(3L);
         when(enrollments.countByCourseInstructorId(instructorId)).thenReturn(20L);
-        when(enrollments.countByCourseInstructorIdAndStatus(instructorId, EnrollmentStatus.ACTIVE)).thenReturn(15L);
+        when(enrollments.countDistinctStudentsByCourseInstructorIdAndStatus(instructorId, EnrollmentStatus.ACTIVE)).thenReturn(15L);
         when(enrollments.countByCourseInstructorIdAndStatus(instructorId, EnrollmentStatus.COMPLETED)).thenReturn(5L);
         when(attempts.averageScoreOnAssessmentsCreatedBy(instructorId, AttemptStatus.SUBMITTED)).thenReturn(71.6);
         when(attempts.countByAssessment_CreatedByAndStatusAndScoreIsNull(instructorId, AttemptStatus.SUBMITTED))

@@ -21,6 +21,8 @@ public interface AdminAssessmentService {
     /** Return a paginated list of all assessments, optionally filtered by status. */
     PageResponse<AssessmentSummaryResponse> list(AssessmentStatus status, Pageable pageable);
 
+    PageResponse<AssessmentSummaryResponse> list(AssessmentStatus status, Pageable pageable, UUID createdBy);
+
     /** Return the full detail of one assessment. */
     AssessmentResponse findById(UUID id);
 

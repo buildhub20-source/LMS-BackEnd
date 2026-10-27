@@ -10,6 +10,10 @@ import java.util.UUID;
 /** Public view of a course returned by the API. */
 public class CourseResponse {
 
+    private String enrollmentStatus;
+    public String getEnrollmentStatus() { return enrollmentStatus; }
+    public void setEnrollmentStatus(String enrollmentStatus) { this.enrollmentStatus = enrollmentStatus; }
+
     private int progressPercent;
     public int getProgressPercent() { return progressPercent; }
     public void setProgressPercent(int progressPercent) { this.progressPercent = progressPercent; }

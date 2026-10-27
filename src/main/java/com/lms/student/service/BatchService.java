@@ -19,6 +19,8 @@ public interface BatchService {
 
     PageResponse<BatchResponse> search(String search, BatchStatus status, Pageable pageable);
 
+    PageResponse<BatchResponse> search(String search, BatchStatus status, Pageable pageable, UUID instructorId);
+
     BatchResponse update(UUID id, UpdateBatchRequest request);
 
     /** Refuses to delete a batch that still has learners in it. */

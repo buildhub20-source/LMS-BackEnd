@@ -135,6 +135,9 @@ public class AdminSectionServiceImpl implements AdminSectionService {
         } else {
             Section section = sectionRepository.findById(sectionId)
                     .orElseThrow(() -> ResourceNotFoundException.of("Section", sectionId));
+            if (!aq.getAssessment().getId().equals(section.getAssessment().getId())) {
+                throw new com.lms.common.exception.BusinessRuleException("The section must belong to the same assessment");
+            }
             aq.setSection(section);
         }
 
@@ -153,6 +156,9 @@ public class AdminSectionServiceImpl implements AdminSectionService {
         } else {
             Section section = sectionRepository.findById(sectionId)
                     .orElseThrow(() -> ResourceNotFoundException.of("Section", sectionId));
+            if (!aq.getAssessment().getId().equals(section.getAssessment().getId())) {
+                throw new com.lms.common.exception.BusinessRuleException("The section must belong to the same assessment");
+            }
             aq.setSection(section);
         }
 

@@ -864,6 +864,7 @@ public class StudentAssessmentServiceImpl implements StudentAssessmentService {
                 s.getId(),
                 s.getAttempt().getId(),
                 s.getQuestionId(),
+                null,
                 s.getLanguage(),
                 s.getSourceCode(),
                 s.getStatus(),

@@ -4,6 +4,9 @@ import com.lms.assessment.dto.request.CreateQuestionRequest;
 import com.lms.assessment.dto.request.UpdateQuestionRequest;
 import com.lms.assessment.dto.response.QuestionResponse;
 import com.lms.assessment.service.AdminQuestionService;
+import com.lms.assessment.service.AdminAssessmentService;
+import com.lms.security.authentication.AuthenticationService;
+import com.lms.security.authentication.LmsUserDetails;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,6 +36,8 @@ import java.util.UUID;
 public class AdminQuestionController {
 
     private final AdminQuestionService questionService;
+    private final AdminAssessmentService assessmentService;
+    private final com.lms.assessment.service.AssessmentScope scope;
 
     @Operation(summary = "Add a coding question with test cases to an assessment")
     @PostMapping("/{assessmentId}/questions")
@@ -40,6 +46,7 @@ public class AdminQuestionController {
             @PathVariable UUID assessmentId,
             @Valid @RequestBody CreateQuestionRequest request) {
 
+        requireInstructorOwnership(assessmentId);
         QuestionResponse response = questionService.addQuestion(assessmentId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.of(response, "Question added to assessment successfully"));
@@ -51,6 +58,7 @@ public class AdminQuestionController {
     public ResponseEntity<ApiResponse<List<QuestionResponse>>> getQuestions(
             @PathVariable UUID assessmentId) {
 
+        requireInstructorOwnership(assessmentId);
         return ResponseEntity.ok(ApiResponse.of(questionService.getQuestionsByAssessmentId(assessmentId)));
     }
 
@@ -61,6 +69,7 @@ public class AdminQuestionController {
             @PathVariable UUID questionId,
             @Valid @RequestBody UpdateQuestionRequest request) {
 
+        scope.requireQuestion(questionId);
         return ResponseEntity.ok(
                 ApiResponse.of(questionService.updateQuestion(questionId, request), "Question updated"));
     }
@@ -72,7 +81,16 @@ public class AdminQuestionController {
             @PathVariable UUID assessmentId,
             @PathVariable UUID questionId) {
 
+        requireInstructorOwnership(assessmentId);
         questionService.removeQuestionFromAssessment(assessmentId, questionId);
         return ResponseEntity.ok(ApiResponse.message("Question removed from assessment"));
+    }
+
+    private void requireInstructorOwnership(UUID assessmentId) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        if ((principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN"))
+                && !principal.getUserId().equals(assessmentService.findById(assessmentId).createdBy())) {
+            throw new AccessDeniedException("You may only manage your own assessments");
+        }
     }
 }

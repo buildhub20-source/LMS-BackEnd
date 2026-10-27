@@ -57,6 +57,8 @@ public class AnalyticsController {
     private final LearningStreakRepository learningStreakRepository;
     private final PointsLedgerRepository pointsLedgerRepository;
     private final LearningTimeService learningTimeService;
+    private final com.lms.instructor.repository.InstructorProfileRepository instructorProfiles;
+    private final com.lms.student.repository.StudentProfileRepository studentProfiles;
 
     @Operation(summary = "Get admin system-wide analytics overview")
     @GetMapping("/admin")
@@ -68,7 +70,7 @@ public class AnalyticsController {
         long totalEnrollments = enrollmentRepository.count();
         long completedEnrollments = enrollmentRepository.countByStatus(EnrollmentStatus.COMPLETED);
         long totalMembers = userRepository.count();
-        long instructorCount = userRepository.countByRoleName("INSTRUCTOR");
+        long instructorCount = instructorProfiles.count();
         long assessmentCount = assessmentRepository.count();
         long publishedAssessments = assessmentRepository.countByStatus(AssessmentStatus.PUBLISHED);
         long pendingInvitations = invitationRepository.countByAcceptedAtIsNullAndExpiresAtAfter(Instant.now());
@@ -91,7 +93,7 @@ public class AnalyticsController {
                 .map(AnalyticsController::courseInsightMap)
                 .toList();
         List<Map<String, Object>> atRiskCourses = publishedCourseInsights.stream()
-                .filter(course -> course.enrollments() == 0 || course.completionRate() < 50)
+                .filter(course -> course.enrollments() > 0 && course.completionRate() < 50)
                 .sorted(Comparator.comparingInt(CourseInsight::completionRate))
                 .limit(5)
                 .map(AnalyticsController::courseInsightMap)
@@ -114,7 +116,7 @@ public class AnalyticsController {
         }
         if (!atRiskCourses.isEmpty()) {
             actionQueue.add(Map.of("type", "risk", "count", atRiskCourses.size(),
-                    "title", "Courses need a progress review", "detail", "Published courses have no enrollments or low completion."));
+                    "title", "Courses need a progress review", "detail", "Published courses with enrollments have completion below 50%."));
         }
 
         Map<String, Object> data = new HashMap<>();
@@ -125,6 +127,7 @@ public class AnalyticsController {
         data.put("completionRate", percentage(completedEnrollments, totalEnrollments));
         data.put("totalMembers", totalMembers);
         data.put("instructorCount", instructorCount);
+        data.put("studentCount", studentProfiles.count());
         data.put("assessmentCount", assessmentCount);
         data.put("publishedAssessments", publishedAssessments);
         data.put("pendingInvitations", pendingInvitations);
@@ -142,7 +145,7 @@ public class AnalyticsController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getInstructorOverview() {
         var principal = AuthenticationService.requirePrincipal();
         long totalEnrollments = enrollmentRepository.countByCourseInstructorId(principal.getUserId());
-        long activeStudents = enrollmentRepository.countByCourseInstructorIdAndStatus(
+        long activeStudents = enrollmentRepository.countDistinctStudentsByCourseInstructorIdAndStatus(
                 principal.getUserId(), EnrollmentStatus.ACTIVE);
         long completedStudents = enrollmentRepository.countByCourseInstructorIdAndStatus(
                 principal.getUserId(), EnrollmentStatus.COMPLETED);
@@ -174,7 +177,7 @@ public class AnalyticsController {
         UUID studentId = AuthenticationService.requirePrincipal().getUserId();
         long totalEnrollments = enrollmentRepository.countByStudentId(studentId);
         long completedCourses = enrollmentRepository.countByStudentIdAndStatus(studentId, EnrollmentStatus.COMPLETED);
-        long inProgressCourses = Math.max(0, totalEnrollments - completedCourses);
+        long inProgressCourses = enrollmentRepository.countByStudentIdAndStatus(studentId, EnrollmentStatus.ACTIVE);
 
         // Real streak from LearningStreak table
         int streakDays = learningStreakRepository.findByStudentId(studentId)
@@ -231,8 +234,9 @@ public class AnalyticsController {
                     "name", dayNames[i],
                     "day", day.toString(),
                     "points", points,
-                    "minutes", Math.round(seconds / 60.0),
-                    "hours", Math.round(seconds / 360.0) / 10.0));
+                    "seconds", seconds,
+                    "minutes", seconds / 60.0,
+                    "hours", seconds / 3600.0));
         }
         return trend;
     }

@@ -20,6 +20,13 @@ spring:
     default-schema: lms
 
 lms:
+  # Tests must not inherit enabled external integrations from a developer's .env.
+  mail:
+    enabled: false
+  certificate-service:
+    enabled: false
+  ai-service:
+    enabled: false
   bootstrap:
     admin:
       enabled: false

@@ -227,6 +227,7 @@ public class CourseServiceImpl implements CourseService {
             var lessonIds = course.getModules().stream().flatMap(module -> module.getLessons().stream())
                     .map(lesson -> lesson.getId()).collect(Collectors.toSet());
             long completed = enrollment.getCompletedLessonIds().stream().filter(lessonIds::contains).count();
+            response.setEnrollmentStatus(enrollment.getStatus().name());
             response.setProgressPercent(lessonIds.isEmpty() ? 0 : (int) Math.round(100.0 * completed / lessonIds.size()));
             return response;
         });

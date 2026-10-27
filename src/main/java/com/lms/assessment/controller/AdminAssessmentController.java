@@ -22,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -71,6 +72,7 @@ public class AdminAssessmentController {
     @PostMapping("/{id}/duplicate")
     @PreAuthorize("hasAuthority('ASSESSMENT_CREATE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> duplicate(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         LmsUserDetails principal = AuthenticationService.requirePrincipal();
         AssessmentResponse response = assessmentService.duplicate(id, principal.getUserId());
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -88,7 +90,9 @@ public class AdminAssessmentController {
             @RequestParam(required = false) AssessmentStatus status,
             Pageable pageable) {
 
-        return ResponseEntity.ok(ApiResponse.of(assessmentService.list(status, pageable)));
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        UUID createdBy = (principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN")) ? principal.getUserId() : null;
+        return ResponseEntity.ok(ApiResponse.of(assessmentService.list(status, pageable, createdBy)));
     }
 
     // ---------------------------------------------------------------
@@ -99,6 +103,7 @@ public class AdminAssessmentController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> findById(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(ApiResponse.of(assessmentService.findById(id)));
     }
 
@@ -113,6 +118,7 @@ public class AdminAssessmentController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateAssessmentRequest request) {
 
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.update(id, request), "Assessment updated"));
     }
@@ -125,6 +131,7 @@ public class AdminAssessmentController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ASSESSMENT_DELETE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         assessmentService.delete(id);
         return ResponseEntity.ok(ApiResponse.message("Assessment deleted"));
     }
@@ -137,6 +144,7 @@ public class AdminAssessmentController {
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> publish(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.publish(id), "Assessment published successfully"));
     }
@@ -149,6 +157,7 @@ public class AdminAssessmentController {
     @PostMapping("/{id}/unpublish")
     @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> unpublish(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.unpublish(id), "Assessment moved back to DRAFT"));
     }
@@ -161,6 +170,7 @@ public class AdminAssessmentController {
     @PostMapping("/{id}/close")
     @PreAuthorize("hasAuthority('ASSESSMENT_PUBLISH') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> close(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.close(id), "Assessment closed successfully"));
     }
@@ -173,6 +183,7 @@ public class AdminAssessmentController {
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAuthority('ASSESSMENT_DELETE') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentResponse>> archive(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.archive(id), "Assessment archived successfully"));
     }
@@ -187,6 +198,7 @@ public class AdminAssessmentController {
     public ResponseEntity<ApiResponse<AssessmentResponse>> toggleResultAnalytics(
             @PathVariable UUID id,
             @RequestParam(name = "enabled", required = false, defaultValue = "true") boolean enabled) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.toggleResultAnalytics(id, enabled), "Result analytics visibility updated"));
     }
@@ -202,6 +214,7 @@ public class AdminAssessmentController {
             @PathVariable UUID id,
             @Valid @RequestBody ExtendAssessmentRequest request) {
 
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.extend(id, request.minutes()), "Assessment deadline extended"));
     }
@@ -217,6 +230,7 @@ public class AdminAssessmentController {
             @PathVariable UUID id,
             @RequestBody UpdateScheduleRequest request) {
 
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(
                 ApiResponse.of(assessmentService.updateSchedule(id, request.startTime(), request.endTime()), "Schedule updated"));
     }
@@ -230,6 +244,7 @@ public class AdminAssessmentController {
 
     @PreAuthorize("hasAuthority('ASSESSMENT_ANALYTICS_VIEW') or hasAuthority('ASSESSMENT_VIEW') or hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasRole('INSTRUCTOR')")
     public ResponseEntity<ApiResponse<AssessmentAnalyticsResponse>> getAnalytics(@PathVariable UUID id) {
+        requireInstructorOwnership(id);
         return ResponseEntity.ok(ApiResponse.of(assessmentService.getAnalytics(id)));
     }
 
@@ -249,7 +264,16 @@ public class AdminAssessmentController {
             @PathVariable UUID id,
             @PathVariable UUID studentId) {
 
+        requireInstructorOwnership(id);
         assessmentService.retestStudent(id, studentId);
         return ResponseEntity.ok(ApiResponse.message("Retest granted — student has been granted 1 extra attempt"));
+    }
+
+    private void requireInstructorOwnership(UUID id) {
+        LmsUserDetails principal = AuthenticationService.requirePrincipal();
+        if ((principal.getRoles().contains("INSTRUCTOR") && !principal.getRoles().contains("ADMIN") && !principal.getRoles().contains("SUPER_ADMIN"))
+                && !principal.getUserId().equals(assessmentService.findById(id).createdBy())) {
+            throw new AccessDeniedException("You may only manage your own assessments");
+        }
     }
 }

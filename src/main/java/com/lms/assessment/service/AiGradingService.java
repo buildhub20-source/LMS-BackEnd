@@ -105,7 +105,7 @@ public class AiGradingService {
             GradingAccess.requireCanGrade(submission.getAttempt().getAssessment(), principal);
             return resultRepository.findFirstBySubmissionIdOrderByCreatedAtDesc(submissionId)
                     .map(this::toResponse)
-                    .orElseThrow(() -> new ResourceNotFoundException("No AI suggestion has been requested for this answer"));
+                    .orElse(null);
         });
     }
 

@@ -21,7 +21,8 @@ public record LiveSessionResponse(
         Instant actualEnd,
         String roomName,
         LiveSessionStatus status,
-        String recordingUrl,
+        String sessionMode,
+        String meetingUrl,
         Instant createdAt
 ) {
     public static LiveSessionResponse from(LiveSession session) {
@@ -40,7 +41,8 @@ public record LiveSessionResponse(
                 session.getActualEnd(),
                 session.getRoomName(),
                 session.getStatus(),
-                session.getRecordingUrl(),
+                session.getSessionMode(),
+                session.getMeetingUrl(),
                 session.getCreatedAt()
         );
     }

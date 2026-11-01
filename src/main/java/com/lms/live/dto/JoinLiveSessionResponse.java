@@ -6,5 +6,6 @@ public record JoinLiveSessionResponse(
         String roomName,
         String participantIdentity,
         String participantName,
-        boolean isPublisher
+        boolean isPublisher,
+        String meetingUrl
 ) {}

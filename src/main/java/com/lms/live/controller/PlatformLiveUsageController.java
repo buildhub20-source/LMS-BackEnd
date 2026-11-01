@@ -52,6 +52,7 @@ public class PlatformLiveUsageController {
                 current.liveProctoringEnabled(),
                 current.chatFileRetentionDays(),
                 request.liveClassesEnabled(),
+                null,
                 request.maxLiveParticipants(),
                 request.monthlyLiveParticipantMinutes(),
                 request.maxLiveSessionDurationMinutes(),

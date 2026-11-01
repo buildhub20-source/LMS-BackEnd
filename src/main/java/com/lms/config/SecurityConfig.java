@@ -49,6 +49,7 @@ public class SecurityConfig {
             "/error",
             ApiPaths.WELL_KNOWN + "/**",   // JWKS discovery (public, returns no secret)
             ApiPaths.INTEGRATIONS + "/livekit/webhook",
+            ApiPaths.API_V1 + "/live-sessions/google/callback",
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html"

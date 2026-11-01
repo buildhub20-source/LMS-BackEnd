@@ -94,13 +94,6 @@ public class LiveKitWebhookController {
                         });
                     }
                 }
-                case "egress_ended" -> {
-                    String downloadUrl = root.path("egressInfo").path("fileResults").path(0).path("downloadUrl").asText("");
-                    if (!downloadUrl.isBlank()) {
-                        session.setRecordingUrl(downloadUrl);
-                        sessionRepository.save(session);
-                    }
-                }
                 default -> log.debug("Unhandled LiveKit event: {}", event);
             }
 

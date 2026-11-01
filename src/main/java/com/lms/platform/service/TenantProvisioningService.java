@@ -13,6 +13,9 @@ import com.lms.platform.provisioning.TenantDatabaseInitializer;
 import com.lms.platform.provisioning.TenantDatabaseProvisioner;
 import com.lms.platform.repository.TenantAuditEventRepository;
 import com.lms.platform.repository.TenantRepository;
+import com.lms.platform.runtime.TenantSlug;
+import com.lms.platform.repository.TenantConfigRepository;
+import com.lms.platform.entity.TenantConfig;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +33,7 @@ public class TenantProvisioningService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final TenantRepository tenantRepository;
+    private final TenantConfigRepository tenantConfigRepository;
     private final TenantAuditEventRepository auditRepository;
     private final TenantDatabaseProvisioner provisioner;
     private final TenantDatabaseInitializer initializer;
@@ -37,12 +41,14 @@ public class TenantProvisioningService {
     private final PlatformConfig config;
 
     public TenantProvisioningService(TenantRepository tenantRepository,
+                                     TenantConfigRepository tenantConfigRepository,
                                      TenantAuditEventRepository auditRepository,
                                      TenantDatabaseProvisioner provisioner,
                                      TenantDatabaseInitializer initializer,
                                      TenantSecretCipher cipher,
                                      PlatformConfig config) {
         this.tenantRepository = tenantRepository;
+        this.tenantConfigRepository = tenantConfigRepository;
         this.auditRepository = auditRepository;
         this.provisioner = provisioner;
         this.initializer = initializer;
@@ -53,6 +59,12 @@ public class TenantProvisioningService {
     @Transactional
     public TenantResponse create(CreateTenantRequest request, UUID actorId) {
         String slug = request.slug().trim().toLowerCase();
+        if (TenantSlug.isReserved(slug)) {
+            // These labels already name infrastructure on the base domain, so a
+            // tenant holding one would shadow a real host.
+            throw new ApplicationException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "This slug is reserved and cannot be used for a workspace");
+        }
         if (tenantRepository.existsBySlug(slug)) {
             throw new ApplicationException(ErrorCode.RESOURCE_ALREADY_EXISTS, "A tenant already uses this slug");
         }
@@ -64,8 +76,11 @@ public class TenantProvisioningService {
                 .ownerName(request.ownerName().trim())
                 .ownerEmail(request.ownerEmail().trim().toLowerCase())
                 .encryptedOwnerPassword(cipher.encrypt(request.initialAdminPassword()))
+                .liveSessionProvider(liveProvider(request.liveSessionProvider()))
                 .build();
         tenantRepository.save(tenant);
+        tenantConfigRepository.save(TenantConfig.builder().tenantId(tenant.getId())
+                .liveClassesEnabled(true).liveSessionProvider(tenant.getLiveSessionProvider()).build());
         audit(tenant, actorId, "TENANT_REQUESTED", "Tenant database provisioning requested");
         return TenantResponse.from(tenant);
     }
@@ -115,6 +130,10 @@ public class TenantProvisioningService {
             tenant.setFailureReason(null);
             audit(tenant, actorId, "TENANT_ACTIVATED", "LMS migrations and tenant administrator initialized");
             tenantRepository.save(tenant);
+            return TenantResponse.from(tenant);
+        } catch (org.springframework.web.client.HttpClientErrorException.Forbidden ex) {
+            log.warn("Supabase denied project provisioning for tenant {}", tenant.getId());
+            fail(tenant, actorId, "Supabase denied project creation (HTTP 403). Check the access token's organization permissions and the organization's project limit, then retry provisioning.");
             return TenantResponse.from(tenant);
         } catch (ApplicationException ex) {
             fail(tenant, actorId, ex.getMessage());
@@ -249,5 +268,14 @@ public class TenantProvisioningService {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String liveProvider(String requested) {
+        String provider = requested == null || requested.isBlank() ? "LIVEKIT" : requested.trim().toUpperCase();
+        if (!provider.equals("LIVEKIT") && !provider.equals("GOOGLE_MEET")) {
+            throw new ApplicationException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "Live session provider must be LIVEKIT or GOOGLE_MEET");
+        }
+        return provider;
     }
 }

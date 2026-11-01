@@ -17,6 +17,7 @@ import com.lms.assessment.entity.AttemptStatus;
 import com.lms.assessment.entity.RetakePolicy;
 import com.lms.assessment.entity.Section;
 import com.lms.assessment.entity.Submission;
+import com.lms.assessment.event.AssessmentPublishedEvent;
 import com.lms.assessment.mapper.AssessmentMapper;
 import com.lms.assessment.repository.AssessmentAttemptRepository;
 import com.lms.assessment.repository.AssessmentQuestionRepository;
@@ -66,6 +67,7 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
     private final AssessmentRetestGrantRepository retestGrantRepository;
     private final UserRepository userRepository;
     private final SectionRepository sectionRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     // ---------------------------------------------------------------
     // Create
@@ -278,6 +280,10 @@ public class AdminAssessmentServiceImpl implements AdminAssessmentService {
         assessment.publish();
         Assessment saved = assessmentRepository.save(assessment);
         log.info("Admin published assessment {} ('{}')", id, assessment.getTitle());
+
+        // Assessments are not course-scoped, so publishing is the point at
+        // which every student can see this one.
+        eventPublisher.publishEvent(new AssessmentPublishedEvent(saved.getId()));
 
         return toResponse(saved);
     }

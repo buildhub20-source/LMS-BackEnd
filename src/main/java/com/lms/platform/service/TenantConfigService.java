@@ -69,11 +69,18 @@ public class TenantConfigService {
         }
 
         if (request.liveClassesEnabled() != null) config.setLiveClassesEnabled(request.liveClassesEnabled());
+        if (request.liveSessionProvider() != null) {
+            String provider = request.liveSessionProvider().trim().toUpperCase();
+            if (!provider.equals("LIVEKIT") && !provider.equals("GOOGLE_MEET")) {
+                throw new IllegalArgumentException("Live session provider must be LIVEKIT or GOOGLE_MEET");
+            }
+            config.setLiveSessionProvider(provider);
+        }
         if (request.maxLiveParticipants() != null) config.setMaxLiveParticipants(request.maxLiveParticipants());
         if (request.monthlyLiveParticipantMinutes() != null) config.setMonthlyLiveParticipantMinutes(request.monthlyLiveParticipantMinutes());
         if (request.maxLiveSessionDurationMinutes() != null) config.setMaxLiveSessionDurationMinutes(request.maxLiveSessionDurationMinutes());
         if (request.maxConcurrentLiveSessions() != null) config.setMaxConcurrentLiveSessions(request.maxConcurrentLiveSessions());
-        if (request.recordingEnabled() != null) config.setRecordingEnabled(request.recordingEnabled());
+        config.setRecordingEnabled(false);
         if (request.monthlyRecordingMinutes() != null) config.setMonthlyRecordingMinutes(request.monthlyRecordingMinutes());
         if (request.attendanceEnabled() != null) config.setAttendanceEnabled(request.attendanceEnabled());
         if (request.liveChatEnabled() != null) config.setLiveChatEnabled(request.liveChatEnabled());

@@ -12,6 +12,7 @@ import com.lms.enrollment.dto.response.EnrollmentResponse;
 import com.lms.enrollment.entity.Enrollment;
 import com.lms.enrollment.entity.EnrollmentStatus;
 import com.lms.enrollment.event.EnrollmentCompletedEvent;
+import com.lms.enrollment.event.EnrollmentCreatedEvent;
 import com.lms.enrollment.mapper.EnrollmentMapper;
 import com.lms.enrollment.repository.EnrollmentRepository;
 import com.lms.platform.runtime.TenantContext;
@@ -128,6 +129,11 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .build();
 
         Enrollment saved = enrollmentRepository.save(enrollment);
+
+        // Being enrolled is what makes a course a student's own, so this is
+        // where the course mail comes from rather than course publication.
+        eventPublisher.publishEvent(new EnrollmentCreatedEvent(student.getId(), course.getId()));
+
         return enrollmentMapper.toResponse(saved);
     }
 

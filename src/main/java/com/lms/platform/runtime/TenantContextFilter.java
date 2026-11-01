@@ -35,6 +35,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
         return !request.getRequestURI().startsWith(ApiPaths.API_V1)
                 || request.getRequestURI().startsWith(ApiPaths.PLATFORM)
                 || request.getRequestURI().startsWith(ApiPaths.INTERNAL + "/tenants")
+                || request.getRequestURI().startsWith(ApiPaths.API_V1 + "/live-sessions/google/callback")
                 || request.getRequestURI().startsWith(ApiPaths.WELL_KNOWN);
     }
 

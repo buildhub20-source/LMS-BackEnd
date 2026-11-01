@@ -105,7 +105,7 @@ springdoc:
 
 lms:
   app:
-    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
   bootstrap:
     admin:
       enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
@@ -155,6 +155,29 @@ lms:
     enabled: ${CERT_SERVICE_ENABLED:false}
     timeout-ms: ${CERT_SERVICE_TIMEOUT_MS:3000}
 
+  # LMS-Notification-Service. The row is written here either way; this only
+  # controls whether the recipient's bell updates without a refetch.
+  notification-service:
+    base-url: ${NOTIFICATION_SERVICE_URL:http://localhost:3002}
+    enabled: ${NOTIFICATION_SERVICE_ENABLED:false}
+    timeout-ms: ${NOTIFICATION_SERVICE_TIMEOUT_MS:2000}
+
+  # Mails sent to students when they are given something to learn from.
+  # lms.mail.enabled still decides whether any mail leaves at all; these only
+  # choose which events are worth one. The assessment and toolkit mails reach
+  # every active student, so each can be silenced on its own.
+  learning-mail:
+    enrollment-enabled: ${LEARNING_MAIL_ENROLLMENT:true}
+    assessment-enabled: ${LEARNING_MAIL_ASSESSMENT:true}
+    live-session-enabled: ${LEARNING_MAIL_LIVE_SESSION:true}
+    live-reminder-enabled: ${LEARNING_MAIL_LIVE_REMINDER:true}
+    campus-toolkit-enabled: ${LEARNING_MAIL_CAMPUS_TOOLKIT:true}
+    signature: ${LEARNING_MAIL_SIGNATURE:The GradusMind team}
+    # Sessions are stored as instants, so without a zone every student would
+    # be told a UTC time.
+    time-zone: ${LEARNING_MAIL_TIME_ZONE:Asia/Kolkata}
+    time-zone-label: ${LEARNING_MAIL_TIME_ZONE_LABEL:IST}
+
   # LMS-AI-Service (Claude-powered grading). Off until the service is deployed.
   ai-service:
     base-url: ${AI_SERVICE_URL:http://localhost:3003}
@@ -183,6 +206,11 @@ lms:
     tenant-header: ${TENANT_HEADER:X-Tenant-Slug}
     base-domain: ${TENANT_BASE_DOMAIN:}
     credential-encryption-key: ${TENANT_CREDENTIAL_ENCRYPTION_KEY:}
+    google-calendar:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+      client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:}
+      frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
     global-admin:
       enabled: ${PLATFORM_ADMIN_ENABLED:false}
       email: ${PLATFORM_ADMIN_EMAIL:}

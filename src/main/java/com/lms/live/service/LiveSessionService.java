@@ -14,6 +14,7 @@ import com.lms.live.dto.LiveAttendanceResponse;
 import com.lms.live.dto.LiveSessionResponse;
 import com.lms.live.entity.LiveSession;
 import com.lms.live.entity.LiveSessionStatus;
+import com.lms.live.event.LiveSessionScheduledEvent;
 import com.lms.live.repository.LiveSessionAttendanceRepository;
 import com.lms.live.repository.LiveSessionRepository;
 import com.lms.platform.entity.Tenant;
@@ -50,6 +51,9 @@ public class LiveSessionService {
     private final LiveKitService liveKitService;
     private final LiveUsageService liveUsageService;
     private final LiveAttendanceService liveAttendanceService;
+    private final GoogleCalendarService googleCalendarService;
+    private final com.lms.platform.service.CentralTenantConfigReader centralTenantConfigReader;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public LiveSessionResponse createSession(UUID courseId, CreateLiveSessionRequest request, UUID actorId) {
@@ -81,7 +85,17 @@ public class LiveSessionService {
         }
 
         UUID sessionId = UUID.randomUUID();
-        String roomName = liveKitService.buildRoomName(tenantId, sessionId);
+        if (!"live".equals(request.sessionMode()) && !"google_meet".equals(request.sessionMode())) {
+            throw new BusinessRuleException("Choose a live session mode.");
+        }
+        if (config != null) {
+            String allowed = "GOOGLE_MEET".equals(config.getLiveSessionProvider()) ? "google_meet" : "live";
+            if (!allowed.equals(request.sessionMode())) {
+                throw new BusinessRuleException("This session mode is not enabled for your organization.");
+            }
+        }
+        String roomName = "google_meet".equals(request.sessionMode()) ? "google-meet-" + sessionId
+                : liveKitService.buildRoomName(tenantId, sessionId);
 
         LiveSession session = LiveSession.builder()
                 .id(sessionId)
@@ -93,11 +107,28 @@ public class LiveSessionService {
                 .scheduledStart(request.scheduledStart())
                 .scheduledEnd(request.scheduledEnd())
                 .roomName(roomName)
+                .sessionMode(request.sessionMode())
                 .status(LiveSessionStatus.SCHEDULED)
                 .build();
 
+        if ("google_meet".equals(request.sessionMode())) {
+            GoogleCalendarService.MeetEvent meet;
+            try { meet = googleCalendarService.createMeetEvent(config, request.title(),
+                    request.description(), request.scheduledStart(), request.scheduledEnd());
+            } catch (BusinessRuleException ex) { throw ex; }
+            catch (Exception ex) { throw new BusinessRuleException("Could not create the Google Meet link. Check the Calendar connection and try again."); }
+            session.setGoogleEventId(meet.eventId());
+            session.setMeetingUrl(meet.meetingUrl());
+        }
+
         LiveSession saved = sessionRepository.save(session);
         log.info("Scheduled Live Session {} for course {}", saved.getId(), course.getTitle());
+
+        // Tells the enrolled students the class is on their calendar. The
+        // reminder mails are not scheduled here: the sweep in
+        // LiveSessionReminderScheduler picks the session up from its start time.
+        eventPublisher.publishEvent(new LiveSessionScheduledEvent(saved.getId(), course.getId()));
+
         return LiveSessionResponse.from(saved);
     }
 
@@ -223,6 +254,10 @@ public class LiveSessionService {
             liveUsageService.recordSessionHosted(tenantId);
         }
 
+        if (session.getMeetingUrl() != null) {
+            return new JoinLiveSessionResponse(null, null, null, user.getId().toString(), user.getName(), true, session.getMeetingUrl());
+        }
+
         liveAttendanceService.recordParticipantJoined(session, user);
 
         String token = liveKitService.generateParticipantToken(
@@ -239,7 +274,8 @@ public class LiveSessionService {
                 session.getRoomName(),
                 user.getId().toString(),
                 user.getName(),
-                true
+                true,
+                null
         );
     }
 
@@ -262,7 +298,17 @@ public class LiveSessionService {
             }
         }
 
+        if (session.getMeetingUrl() != null) {
+            if (session.getStatus() != LiveSessionStatus.SCHEDULED && session.getStatus() != LiveSessionStatus.LIVE) {
+                throw new BusinessRuleException("This live class is no longer available to join.");
+            }
+            liveAttendanceService.recordParticipantJoined(session, user);
+            return new JoinLiveSessionResponse(null, null, null, user.getId().toString(), user.getName(),
+                    isInstructor || isAdmin, session.getMeetingUrl());
+        }
+
         if (session.getStatus() != LiveSessionStatus.LIVE) {
+            if (session.getMeetingUrl() != null && (isInstructor || isAdmin)) return startSession(sessionId, actorId);
             if (isInstructor || isAdmin) {
                 return startSession(sessionId, actorId);
             }
@@ -294,7 +340,8 @@ public class LiveSessionService {
                 session.getRoomName(),
                 user.getId().toString(),
                 user.getName(),
-                isInstructor || isAdmin
+                isInstructor || isAdmin,
+                null
         );
     }
 
@@ -413,6 +460,6 @@ public class LiveSessionService {
 
     public TenantConfig getTenantConfig(UUID tenantId) {
         if (tenantId == null) return null;
-        return tenantConfigRepository.findByTenantId(tenantId).orElse(null);
+        return centralTenantConfigReader.find(tenantId);
     }
 }

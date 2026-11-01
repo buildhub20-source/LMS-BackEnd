@@ -32,6 +32,25 @@ public interface LiveSessionRepository extends JpaRepository<LiveSession, UUID> 
             + "AND s.scheduledEnd < :before")
     List<LiveSession> findOpenEndedBefore(@Param("tenantId") UUID tenantId, @Param("before") java.time.Instant before);
 
+    /**
+     * Classes still to come whose start falls at or before {@code dueBefore} —
+     * the candidates for a reminder mail.
+     *
+     * <p>{@code notBefore} is the caller's floor: it keeps a class already
+     * under way out of the results, and lets the day-before reminder exclude
+     * classes that are nearly starting. CANCELLED and MISSED are excluded by
+     * the status filter.
+     *
+     * <p>The course is fetch-joined because the reminder sweep runs outside a
+     * transaction: without it, reading {@code session.getCourse()} to name the
+     * course in the mail would fail on the detached entity.
+     */
+    @Query("SELECT s FROM LiveSession s JOIN FETCH s.course WHERE s.status = 'SCHEDULED' "
+            + "AND s.scheduledStart > :notBefore AND s.scheduledStart <= :dueBefore "
+            + "ORDER BY s.scheduledStart")
+    List<LiveSession> findScheduledStartingBetween(@Param("notBefore") java.time.Instant notBefore,
+                                                   @Param("dueBefore") java.time.Instant dueBefore);
+
     @Query("SELECT COUNT(s) FROM LiveSession s WHERE s.tenantId = :tenantId AND s.status = 'LIVE'")
     long countActiveSessionsByTenantId(@Param("tenantId") UUID tenantId);
 

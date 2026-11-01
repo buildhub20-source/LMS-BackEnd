@@ -10,6 +10,7 @@ import com.lms.resource.dto.response.CampusResourceResponse;
 import com.lms.resource.dto.response.PresignedResourceUploadUrlResponse;
 import com.lms.resource.dto.response.ResourceDownloadResponse;
 import com.lms.resource.entity.CampusResource;
+import com.lms.resource.event.CampusResourcePublishedEvent;
 import com.lms.resource.repository.CampusResourceRepository;
 import com.lms.security.authentication.LmsUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 public class CampusResourceServiceImpl implements CampusResourceService {
 
     private final CampusResourceRepository resourceRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final StorageService storageService;
 
     @Override
@@ -130,6 +132,11 @@ public class CampusResourceServiceImpl implements CampusResourceService {
 
         CampusResource saved = resourceRepository.save(resource);
         log.info("Persisted campus resource {} ({}) by {}", saved.getId(), saved.getTitle(), principal.getUsername());
+
+        if ("PUBLISHED".equalsIgnoreCase(saved.getStatus())) {
+            eventPublisher.publishEvent(new CampusResourcePublishedEvent(saved.getId()));
+        }
+
         return toResponse(saved);
     }
 
@@ -153,6 +160,7 @@ public class CampusResourceServiceImpl implements CampusResourceService {
         if (request.getTargetAudience() != null && !request.getTargetAudience().isBlank()) {
             resource.setTargetAudience(request.getTargetAudience());
         }
+        String statusBefore = resource.getStatus();
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             resource.setStatus(request.getStatus());
         }
@@ -173,6 +181,14 @@ public class CampusResourceServiceImpl implements CampusResourceService {
         }
 
         CampusResource updated = resourceRepository.save(resource);
+
+        // Only the transition into PUBLISHED is news; editing a resource that
+        // was already published must not mail every student again.
+        boolean wasPublished = "PUBLISHED".equalsIgnoreCase(statusBefore);
+        if (!wasPublished && "PUBLISHED".equalsIgnoreCase(updated.getStatus())) {
+            eventPublisher.publishEvent(new CampusResourcePublishedEvent(updated.getId()));
+        }
+
         return toResponse(updated);
     }
 

@@ -68,6 +68,10 @@ public class Tenant extends Timestamped {
     @Column(name = "encrypted_owner_password", columnDefinition = "TEXT")
     private String encryptedOwnerPassword;
 
+    @Column(name = "live_session_provider", nullable = false, length = 24)
+    @Builder.Default
+    private String liveSessionProvider = "LIVEKIT";
+
     @Column(name = "failure_reason", length = 1000)
     private String failureReason;
 

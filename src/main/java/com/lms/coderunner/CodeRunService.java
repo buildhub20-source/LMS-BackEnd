@@ -49,6 +49,12 @@ public class CodeRunService {
             // A compile error is the same for every input; don't spend the budget repeating it.
             if ("COMPILE_ERROR".equals(result.status())) break;
         }
+
+        // If stopped early due to compile error, refund the unexecuted runs
+        if (results.size() < cases.size()) {
+            refund(userId, cases.size() - results.size());
+        }
+
         return results;
     }
 
@@ -63,6 +69,12 @@ public class CodeRunService {
         if (windows.size() > 10_000) {
             windows.entrySet().removeIf(e -> e.getValue().minute != minute);
         }
+    }
+
+    private void refund(UUID userId, int unexecuted) {
+        long minute = Instant.now(clock).getEpochSecond() / 60;
+        windows.computeIfPresent(userId, (id, current) ->
+                current.minute == minute ? new Window(minute, Math.max(0, current.count - unexecuted)) : current);
     }
 
     private record Window(long minute, int count) {

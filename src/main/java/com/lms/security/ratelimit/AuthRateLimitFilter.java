@@ -23,7 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
 
 /**
- * Fixed-window, per-client-IP limit on the public authentication endpoints.
+ * Fixed-window, per-client-IP limit on the public authentication endpoints and
+ * on public certificate verification.
  * Runs after Spring's forwarded-header handling, so behind the host's proxy
  * the remote address is the real client.
  */
@@ -42,6 +43,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered
             ApiPaths.AUTH + "/reset-password", AuthRateLimitProperties::getResetPassword,
             ApiPaths.AUTH + "/accept-invitation", AuthRateLimitProperties::getAcceptInvitation,
             ApiPaths.PLATFORM + "/auth/login", AuthRateLimitProperties::getPlatformLogin);
+    /** Every serial and token is its own path, so verification shares one window per client. */
+    private static final String CERTIFICATE_VERIFY_PREFIX = ApiPaths.API_V1 + "/certificates/verify/";
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
     @Autowired
@@ -63,16 +66,28 @@ public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !properties.isEnabled()
-                || !"POST".equalsIgnoreCase(request.getMethod())
-                || !limits.containsKey(request.getRequestURI());
+        return !properties.isEnabled() || limitKey(request) == null;
+    }
+
+    /** The window a request counts against, or null when it is not limited. */
+    private String limitKey(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        if ("POST".equalsIgnoreCase(request.getMethod()) && limits.containsKey(path)) {
+            return path;
+        }
+        if ("GET".equalsIgnoreCase(request.getMethod()) && path.startsWith(CERTIFICATE_VERIFY_PREFIX)) {
+            return CERTIFICATE_VERIFY_PREFIX;
+        }
+        return null;
     }
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response,
                                     @NonNull FilterChain chain) throws ServletException, IOException {
-        String path = request.getRequestURI();
-        int limit = limits.get(path).applyAsInt(properties);
+        String path = limitKey(request);
+        int limit = CERTIFICATE_VERIFY_PREFIX.equals(path)
+                ? properties.getCertificateVerify()
+                : limits.get(path).applyAsInt(properties);
         long now = clock.millis();
         long windowMillis = properties.getWindow().toMillis();
 

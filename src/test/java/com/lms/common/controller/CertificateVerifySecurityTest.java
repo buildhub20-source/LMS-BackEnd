@@ -24,4 +24,10 @@ class CertificateVerifySecurityTest {
         mockMvc.perform(get("/api/v1/certificates/verify/CERT-2026-AB12CD34"))
                 .andExpect(status().isServiceUnavailable());
     }
+
+    @Test
+    void anyoneMayVerifyByTheTokenInAQrCode() throws Exception {
+        mockMvc.perform(get("/api/v1/certificates/verify/token/" + "a".repeat(43)))
+                .andExpect(status().isServiceUnavailable());
+    }
 }

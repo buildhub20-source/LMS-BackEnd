@@ -54,6 +54,29 @@ class CertificateVerifyTest {
     }
 
     @Test
+    void verifiesAQrTokenThroughTheTenantsPublicEndpoint() {
+        String token = "q0Zb3vYx8mKp2LwT9cRn4HsJ6dFg1AeUoIyQ5tVzXkM";
+        TenantContext.set(new TenantConnection(UUID.randomUUID(), "srp", "SRP", "jdbc:h2:mem:x", "sa", ""));
+        certService.expect(requestTo("http://cert.test/api/v1/public/tenants/srp/verify/token/" + token))
+                .andExpect(headerDoesNotExist(HttpHeaders.AUTHORIZATION))
+                .andRespond(withSuccess("{\"verificationState\":\"VALID\"}", MediaType.APPLICATION_JSON));
+
+        var response = controller.verifyToken(token);
+
+        assertThat(new String(response.getBody())).contains("VALID");
+        assertThat(response.getHeaders().getCacheControl()).contains("no-store").contains("private");
+        certService.verify();
+    }
+
+    @Test
+    void rejectsAMalformedTokenWithoutCallingTheService() {
+        assertThatThrownBy(() -> controller.verifyToken("too-short"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Certificate not found");
+        certService.verify();
+    }
+
+    @Test
     void rejectsAMalformedSerialWithoutCallingTheService() {
         assertThatThrownBy(() -> controller.verify("..%2F..%2Finternal"))
                 .isInstanceOf(ResponseStatusException.class)

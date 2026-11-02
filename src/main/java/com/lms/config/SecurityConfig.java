@@ -88,6 +88,7 @@ public class SecurityConfig {
                         // Branding is shown on the sign-in page; only reading it is public.
                         .requestMatchers(HttpMethod.GET, ApiPaths.ORGANIZATION).permitAll()
                         .requestMatchers(HttpMethod.GET, ApiPaths.API_V1 + "/certificates/verify/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, ApiPaths.API_V1 + "/certificates/verify/token/*").permitAll()
                         .requestMatchers(INTERNAL_ENDPOINTS)
                         .hasAuthority(ServiceKeyAuthFilter.INTERNAL_SERVICE_AUTHORITY)
                         .requestMatchers(ApiPaths.PLATFORM + "/**").hasAuthority("PLATFORM_ADMIN")

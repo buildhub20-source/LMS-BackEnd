@@ -49,6 +49,9 @@ class AdminAssessmentServiceTest {
     @Mock private TestCaseRepository testCaseRepository;
     @Mock private AssessmentMapper assessmentMapper;
     @Mock private com.lms.assessment.repository.AssessmentAttemptRepository assessmentAttemptRepository;
+    // Publishing an assessment now raises AssessmentPublishedEvent, which
+    // the notification mails listen for.
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AdminAssessmentServiceImpl service;

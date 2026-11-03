@@ -17,6 +17,15 @@ public class PlatformConfig {
     private GlobalAdmin globalAdmin = new GlobalAdmin();
     private Provisioning provisioning = new Provisioning();
     private RoleMigration roleMigration = new RoleMigration();
+    private GoogleCalendar googleCalendar = new GoogleCalendar();
+
+    @Getter @Setter
+    public static class GoogleCalendar {
+        private String clientId;
+        private String clientSecret;
+        private String redirectUri;
+        private String frontendBaseUrl = "http://localhost:3000";
+    }
 
     @Getter @Setter
     public static class GlobalAdmin {

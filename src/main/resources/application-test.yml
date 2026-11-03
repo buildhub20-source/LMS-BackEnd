@@ -23,6 +23,11 @@ lms:
   # Tests must not inherit enabled external integrations from a developer's .env.
   mail:
     enabled: false
+  learning-mail:
+    # Nothing to assert on here, and the sweep would poll every tenant.
+    assessment-enabled: false
+    campus-toolkit-enabled: false
+    live-reminder-enabled: false
   certificate-service:
     enabled: false
   ai-service:

@@ -10,5 +10,6 @@ public record CreateLiveSessionRequest(
         @NotBlank @Size(max = 255) String title,
         String description,
         @NotNull Instant scheduledStart,
-        @NotNull Instant scheduledEnd
+        @NotNull Instant scheduledEnd,
+        @NotBlank @jakarta.validation.constraints.Pattern(regexp = "live|google_meet") String sessionMode
 ) {}

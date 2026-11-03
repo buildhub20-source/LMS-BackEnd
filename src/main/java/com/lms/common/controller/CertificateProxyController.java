@@ -13,7 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 import java.util.UUID;
 
-/** Same-origin student certificate gateway; the certificate service enforces ownership. */
+/**
+ * Same-origin student certificate gateway; the certificate service enforces ownership.
+ * Certificate PDFs are rendered per request and passed straight through: nothing is stored.
+ */
 @RestController
 @RequestMapping("/api/v1/certificates")
 @RequiredArgsConstructor
@@ -50,7 +53,23 @@ public class CertificateProxyController {
         return send(path, new HttpHeaders());
     }
 
+    /**
+     * Public: verify by the token in a certificate's QR code. The QR link carries the
+     * tenant, which the verify page sends as the tenant header.
+     */
+    @GetMapping("/verify/token/{token}")
+    public ResponseEntity<byte[]> verifyToken(@PathVariable String token) {
+        if (!TOKEN.matcher(token).matches()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Certificate not found");
+        }
+        String path = TenantContext.current()
+                .map(tenant -> "/api/v1/public/tenants/" + tenant.slug() + "/verify/token/" + token)
+                .orElse("/api/v1/public/verify/token/" + token);
+        return send(path, new HttpHeaders());
+    }
+
     private static final java.util.regex.Pattern SERIAL = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{1,64}");
+    private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile("[A-Za-z0-9_-]{32,64}");
 
     private ResponseEntity<byte[]> forward(String path, HttpServletRequest request) {
         HttpHeaders headers = new HttpHeaders();
@@ -68,7 +87,7 @@ public class CertificateProxyController {
                     HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
             HttpHeaders output = new HttpHeaders();
             output.setContentType(response.getHeaders().getContentType() == null ? MediaType.APPLICATION_JSON : response.getHeaders().getContentType());
-            output.setCacheControl(CacheControl.noStore());
+            output.setCacheControl(CacheControl.noStore().cachePrivate());
             String disposition = response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
             if (disposition != null) output.set(HttpHeaders.CONTENT_DISPOSITION, disposition);
             return new ResponseEntity<>(response.getBody(), output, response.getStatusCode());

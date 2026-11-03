@@ -2,6 +2,7 @@ package com.lms.live.controller;
 
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
+import com.lms.common.exception.BusinessRuleException;
 import com.lms.live.dto.CourseAttendanceSummary;
 import com.lms.live.dto.CreateLiveSessionRequest;
 import com.lms.live.dto.JoinLiveSessionResponse;
@@ -11,6 +12,7 @@ import com.lms.live.dto.MyAttendanceResponse;
 import com.lms.live.service.LiveAttendanceReportService;
 import com.lms.live.service.LiveSessionService;
 import com.lms.security.authentication.AuthenticationService;
+import com.lms.platform.runtime.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,11 +31,14 @@ public class LiveSessionController {
     private final LiveAttendanceReportService attendanceReportService;
 
     @PostMapping(ApiPaths.COURSES + "/{courseId}/live-sessions")
-    @PreAuthorize("hasAuthority('LIVE_SESSION_MANAGE') or hasAnyRole('INSTRUCTOR', 'ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAuthority('LIVE_SESSION_CREATE') or hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<LiveSessionResponse>> scheduleSession(
             @PathVariable UUID courseId,
             @Valid @RequestBody CreateLiveSessionRequest request
     ) {
+        if ("google_meet".equals(request.sessionMode()) && TenantContext.current().isEmpty()) {
+            throw new BusinessRuleException("An organization is required to create a Google Meet class.");
+        }
         UUID actorId = AuthenticationService.requirePrincipal().getUserId();
         LiveSessionResponse response = liveSessionService.createSession(courseId, request, actorId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.of(response));

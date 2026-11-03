@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,7 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "lms.security.rate-limit.enabled=true",
         "lms.security.rate-limit.login=3",
-        "lms.security.rate-limit.forgot-password=2"
+        "lms.security.rate-limit.forgot-password=2",
+        "lms.security.rate-limit.certificate-verify=2"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -58,6 +60,26 @@ class AuthRateLimitIntegrationTest {
 
         mockMvc.perform(forgotPassword("203.0.113.30")).andExpect(status().isTooManyRequests());
         mockMvc.perform(login("203.0.113.30")).andExpect(status().is(not(429)));
+    }
+
+    @Test
+    void certificateVerificationSharesOneWindowAcrossSerialsAndTokens() throws Exception {
+        // Different serials and tokens are different paths; guessing them must still be throttled.
+        mockMvc.perform(verify("/api/v1/certificates/verify/CERT-2026-AAAAAAAA", "203.0.113.40"))
+                .andExpect(status().is(not(429)));
+        mockMvc.perform(verify("/api/v1/certificates/verify/token/" + "a".repeat(43), "203.0.113.40"))
+                .andExpect(status().is(not(429)));
+
+        mockMvc.perform(verify("/api/v1/certificates/verify/CERT-2026-BBBBBBBB", "203.0.113.40"))
+                .andExpect(status().isTooManyRequests());
+        mockMvc.perform(login("203.0.113.40")).andExpect(status().is(not(429)));
+    }
+
+    private MockHttpServletRequestBuilder verify(String path, String ip) {
+        return get(path).with(request -> {
+            request.setRemoteAddr(ip);
+            return request;
+        });
     }
 
     private MockHttpServletRequestBuilder login(String ip) {

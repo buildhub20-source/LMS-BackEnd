@@ -68,10 +68,31 @@ class MigrationSchemaCheckTest {
     @Autowired
     private AssessmentRepository assessmentRepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @Test
     void migrationsProduceASchemaTheEntityModelValidatesAgainst() {
         // Reaching this point means Flyway ran and ddl-auto=validate passed.
         assertThat(permissionRepository.count()).isPositive();
+    }
+
+    @Test
+    void tenantCertificateTablesHaveEveryColumnTheCertificateServiceMaps() {
+        // The certificate service validates its entities against these tables in
+        // each tenant database, so a missing column fails every certificate request.
+        var certificateColumns = jdbc.queryForList(
+                "select lower(column_name) from information_schema.columns "
+                        + "where lower(table_schema) = 'cert' and lower(table_name) = 'certificates'", String.class);
+        assertThat(certificateColumns).contains("verification_token", "recipient_name", "course_title",
+                "issuer_name", "template_id", "template_snapshot");
+
+        var templateColumns = jdbc.queryForList(
+                "select lower(column_name) from information_schema.columns "
+                        + "where lower(table_schema) = 'cert' and lower(table_name) = 'certificate_templates'",
+                String.class);
+        assertThat(templateColumns).contains("name", "source_type", "pdf_template_url", "field_layout",
+                "course_id", "published", "published_at");
     }
 
     @Test

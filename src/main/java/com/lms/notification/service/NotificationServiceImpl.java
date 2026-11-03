@@ -1,5 +1,6 @@
 package com.lms.notification.service;
 
+import com.lms.common.client.NotificationPushClient;
 import com.lms.notification.dto.NotificationResponse;
 import com.lms.notification.entity.Notification;
 import com.lms.notification.repository.NotificationRepository;
@@ -9,6 +10,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -19,6 +22,7 @@ import java.util.UUID;
 public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final NotificationPushClient notificationPushClient;
 
     @Override
     @Transactional
@@ -31,8 +35,10 @@ public class NotificationServiceImpl implements NotificationService {
                 .link(link)
                 .read(false)
                 .build();
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
         log.debug("Notification created for user={} type={}", userId, type);
+
+        pushAfterCommit(saved);
     }
 
     @Override
@@ -65,6 +71,28 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public int markAllRead(UUID userId) {
         return notificationRepository.markAllReadByUserId(userId, Instant.now());
+    }
+
+    /**
+     * Hands the saved row to the notification service once the transaction has
+     * committed, so the websocket never announces a notification that a
+     * rollback then takes away — and never one the recipient cannot yet read.
+     * Outside a transaction the push goes out immediately.
+     */
+    private void pushAfterCommit(Notification saved) {
+        UUID tenantId = NotificationPushClient.currentTenantId();
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            notificationPushClient.push(saved, tenantId);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notificationPushClient.push(saved, tenantId);
+            }
+        });
     }
 
     private NotificationResponse toResponse(Notification n) {

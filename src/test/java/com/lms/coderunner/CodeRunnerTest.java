@@ -92,6 +92,17 @@ class CodeRunnerTest {
     }
 
     @Test
+    void javaPackagePrivateClassAndPackageDeclarationHandled() {
+        String packageCode = "package com.example.test;\n\nclass Solution {\n  public static void main(String[] a) {}\n}";
+        String wrapped = CodeRunnerClient.asMainClass(packageCode);
+
+        assertThat(wrapped).contains("// package removed for sandbox")
+                .contains("class Solution")
+                .contains("public class Main {")
+                .contains("Solution.main(args);");
+    }
+
+    @Test
     void anUnreachableSandboxIsAServiceUnavailableError() {
         sandbox.expect(requestTo(SUBMIT)).andRespond(withServerError());
 

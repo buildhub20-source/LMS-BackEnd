@@ -71,6 +71,16 @@ public class TenantConfig extends Timestamped {
     @Builder.Default
     private boolean liveClassesEnabled = false;
 
+    @Column(name = "live_session_provider", nullable = false, length = 24)
+    @Builder.Default
+    private String liveSessionProvider = "LIVEKIT";
+
+    @Column(name = "google_calendar_refresh_token", columnDefinition = "TEXT")
+    private String googleCalendarRefreshToken;
+
+    @Column(name = "google_calendar_email", length = 255)
+    private String googleCalendarEmail;
+
     @Column(name = "max_live_participants", nullable = false)
     @Builder.Default
     private Integer maxLiveParticipants = 50;

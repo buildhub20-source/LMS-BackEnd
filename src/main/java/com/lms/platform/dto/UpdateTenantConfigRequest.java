@@ -15,6 +15,7 @@ public record UpdateTenantConfigRequest(
         @Min(1) Integer chatFileRetentionDays,
         // Live session fields (all nullable — only updated when present)
         Boolean liveClassesEnabled,
+        String liveSessionProvider,
         @Min(1) Integer maxLiveParticipants,
         @Min(1) Integer monthlyLiveParticipantMinutes,
         @Min(1) Integer maxLiveSessionDurationMinutes,

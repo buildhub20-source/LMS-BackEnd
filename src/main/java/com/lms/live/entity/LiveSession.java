@@ -72,6 +72,13 @@ public class LiveSession extends Timestamped {
     @Builder.Default
     private LiveSessionStatus status = LiveSessionStatus.SCHEDULED;
 
-    @Column(name = "recording_url", columnDefinition = "TEXT")
-    private String recordingUrl;
+    @Column(name = "session_mode", nullable = false, length = 24)
+    @Builder.Default
+    private String sessionMode = "live";
+
+    @Column(name = "meeting_url", columnDefinition = "TEXT")
+    private String meetingUrl;
+
+    @Column(name = "google_event_id", length = 255)
+    private String googleEventId;
 }

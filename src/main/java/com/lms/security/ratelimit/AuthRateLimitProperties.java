@@ -8,7 +8,8 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 /**
- * Per-client-IP request limits on the public authentication endpoints.
+ * Per-client-IP request limits on the public authentication endpoints, and on
+ * public certificate verification.
  *
  * <p>Institutes often put a whole campus behind one public IP, so sign-in and
  * token refresh are deliberately more generous than the endpoints that send
@@ -27,4 +28,6 @@ public class AuthRateLimitProperties {
     private int resetPassword = 10;
     private int acceptInvitation = 10;
     private int platformLogin = 10;
+    /** Public certificate verification, which anyone can call without signing in. */
+    private int certificateVerify = 30;
 }

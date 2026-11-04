@@ -51,6 +51,7 @@ public class LiveSessionReminderScheduler {
     private final LearningMailService learningMailService;
     private final LearningMailAudience audience;
     private final LearningMailProperties properties;
+    private final com.lms.common.sharedstate.ClusterLock clusterLock;
 
     @Scheduled(fixedDelayString = "${LIVE_REMINDER_POLL_MS:60000}",
             initialDelayString = "${LIVE_REMINDER_INITIAL_DELAY_MS:30000}")
@@ -58,6 +59,12 @@ public class LiveSessionReminderScheduler {
         if (!properties.isLiveReminderEnabled()) {
             return;
         }
+        // One backend copy sends reminders per sweep; the reminder table already
+        // prevents duplicates, this just avoids the copies racing for them.
+        clusterLock.runExclusively("live-session-reminders", java.time.Duration.ofMinutes(5), this::sweepAllTenants);
+    }
+
+    private void sweepAllTenants() {
 
         for (Tenant tenant : tenantRepository.findAll()) {
             if (tenant.getStatus() != TenantStatus.ACTIVE || tenant.getJdbcUrl() == null) {

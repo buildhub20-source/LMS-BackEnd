@@ -6,12 +6,13 @@ import com.lms.common.exception.BusinessRuleException;
 import com.lms.config.PlatformConfig;
 import com.lms.platform.entity.Tenant;
 import com.lms.platform.entity.TenantConfig;
-import com.lms.platform.repository.TenantConfigRepository;
 import com.lms.platform.repository.TenantRepository;
 import com.lms.platform.runtime.TenantConnection;
 import com.lms.platform.runtime.TenantContext;
 import com.lms.platform.service.TenantSecretCipher;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -20,20 +21,27 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class GoogleCalendarService {
     private static final String CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
+    /** Limits for every Google call, so a slow Google response never stalls a request thread. */
+    static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+
     private final PlatformConfig config;
     private final TenantRepository tenantRepository;
     private final com.lms.platform.service.CentralTenantConfigReader centralTenantConfigReader;
     private final TenantSecretCipher cipher;
     private final ObjectMapper mapper;
-    private final RestClient http = RestClient.create();
+    private final RestClient http = RestClient.builder().requestFactory(timeoutRequestFactory()).build();
 
     public GoogleCalendarService(PlatformConfig config, TenantRepository tenantRepository,
                                  com.lms.platform.service.CentralTenantConfigReader centralTenantConfigReader, TenantSecretCipher cipher,
@@ -45,10 +53,23 @@ public class GoogleCalendarService {
         this.mapper = mapper;
     }
 
-    public String authorizationUrl() {
+    private static SimpleClientHttpRequestFactory timeoutRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
+        factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
+        return factory;
+    }
+
+    /**
+     * Builds the Google consent URL. The signed state names both the institute and
+     * the admin who asked, and {@link #completeConnection} accepts it only from that
+     * same signed-in admin, so a link opened by anyone else cannot attach their
+     * Google account to the institute.
+     */
+    public String authorizationUrl(UUID adminUserId) {
         TenantConnection tenant = TenantContext.current().orElseThrow(() -> new BusinessRuleException("Tenant context is required"));
         requireOAuthConfigured();
-        String state = signedState(tenant.slug() + "|" + (Instant.now().getEpochSecond() + 600) + "|" + UUID.randomUUID());
+        String state = signedState(tenant.slug() + "|" + (Instant.now().getEpochSecond() + 600) + "|" + adminUserId + "|" + UUID.randomUUID());
         return UriComponentsBuilder.fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
                 .queryParam("client_id", config.getGoogleCalendar().getClientId())
                 .queryParam("redirect_uri", config.getGoogleCalendar().getRedirectUri())
@@ -57,10 +78,27 @@ public class GoogleCalendarService {
                 .queryParam("include_granted_scopes", "true").queryParam("state", state).build().encode().toUriString();
     }
 
-    public String handleCallback(String code, String state) {
-        String payload = verifyState(state);
-        String[] fields = payload.split("\\|", 3);
-        Tenant tenant = tenantRepository.findBySlug(fields[0]).orElseThrow(() -> new BusinessRuleException("Google connection tenant was not found"));
+    /**
+     * Reads the institute slug from a signed, unexpired state. The public callback
+     * uses it only to decide which institute site to send the browser back to; it
+     * connects nothing.
+     */
+    public String tenantSlugFromState(String state) {
+        return parseState(state).slug();
+    }
+
+    /**
+     * Finishes the connection. Called by the signed-in admin's browser after Google
+     * redirects back, so the state must match both the current institute and the
+     * current user.
+     */
+    public String completeConnection(String code, String state, UUID currentUserId) {
+        State parsed = parseState(state);
+        TenantConnection current = TenantContext.current().orElseThrow(() -> new BusinessRuleException("Tenant context is required"));
+        if (!parsed.slug().equalsIgnoreCase(current.slug()) || !parsed.userId().equals(currentUserId)) {
+            throw new BusinessRuleException("This Google authorization was started by a different account. Start the connection again from Live Classes.");
+        }
+        Tenant tenant = tenantRepository.findBySlug(parsed.slug()).orElseThrow(() -> new BusinessRuleException("Google connection tenant was not found"));
         if (tenant.getStatus() != com.lms.platform.entity.TenantStatus.ACTIVE) throw new BusinessRuleException("Tenant is not active");
         try {
             JsonNode tokens = http.post().uri("https://oauth2.googleapis.com/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
@@ -75,7 +113,11 @@ public class GoogleCalendarService {
                     .header("Authorization", "Bearer " + accessToken).retrieve().body(JsonNode.class);
             centralTenantConfigReader.connectGoogle(tenant.getId(), cipher.encrypt(refreshToken), profile.path("email").asText(null));
             return tenant.getSlug();
-        } finally {
+        } catch (BusinessRuleException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.warn("Google authorization exchange failed for tenant {}: {}", tenant.getSlug(), ex.getMessage());
+            throw new BusinessRuleException("Google did not accept the authorization. Start the connection again.");
         }
     }
 
@@ -83,13 +125,7 @@ public class GoogleCalendarService {
                                      Instant start, Instant end) {
         if (tenantConfig == null || tenantConfig.getGoogleCalendarRefreshToken() == null)
             throw new BusinessRuleException("Connect an organization Google Calendar before scheduling Google Meet classes.");
-        String refreshToken = cipher.decrypt(tenantConfig.getGoogleCalendarRefreshToken());
-        JsonNode tokens = http.post().uri("https://oauth2.googleapis.com/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(form(Map.of("client_id", config.getGoogleCalendar().getClientId(),
-                        "client_secret", config.getGoogleCalendar().getClientSecret(),
-                        "refresh_token", refreshToken, "grant_type", "refresh_token")))
-                .retrieve().body(JsonNode.class);
-        String accessToken = tokens.path("access_token").asText();
+        String accessToken = accessToken(tenantConfig);
         String requestId = UUID.randomUUID().toString();
         Map<String, Object> event = Map.of("summary", title, "description", description == null ? "" : description,
                 "start", Map.of("dateTime", start.toString()), "end", Map.of("dateTime", end.toString()),
@@ -108,8 +144,35 @@ public class GoogleCalendarService {
                 meetUrl = refreshed.path("hangoutLink").asText("");
             }
         }
-        if (meetUrl.isBlank()) throw new BusinessRuleException("Google Calendar did not return a Meet link. Check that the connected account supports Google Meet.");
+        if (meetUrl.isBlank()) {
+            deleteEventQuietly(tenantConfig, eventId);
+            throw new BusinessRuleException("Google Calendar did not return a Meet link. Check that the connected account supports Google Meet.");
+        }
         return new MeetEvent(eventId, meetUrl);
+    }
+
+    /**
+     * Deletes a Calendar event, logging instead of throwing. Used to undo an event
+     * whose class could not be saved, and when a Meet class is cancelled.
+     */
+    public void deleteEventQuietly(TenantConfig tenantConfig, String eventId) {
+        if (tenantConfig == null || tenantConfig.getGoogleCalendarRefreshToken() == null || eventId == null || eventId.isBlank()) return;
+        try {
+            http.delete().uri("https://www.googleapis.com/calendar/v3/calendars/primary/events/{id}", eventId)
+                    .header("Authorization", "Bearer " + accessToken(tenantConfig)).retrieve().toBodilessEntity();
+        } catch (RuntimeException ex) {
+            log.warn("Could not delete Google Calendar event {}: {}", eventId, ex.getMessage());
+        }
+    }
+
+    private String accessToken(TenantConfig tenantConfig) {
+        String refreshToken = cipher.decrypt(tenantConfig.getGoogleCalendarRefreshToken());
+        JsonNode tokens = http.post().uri("https://oauth2.googleapis.com/token").contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form(Map.of("client_id", config.getGoogleCalendar().getClientId(),
+                        "client_secret", config.getGoogleCalendar().getClientSecret(),
+                        "refresh_token", refreshToken, "grant_type", "refresh_token")))
+                .retrieve().body(JsonNode.class);
+        return tokens.path("access_token").asText();
     }
 
     private MultiValueMap<String, String> form(Map<String, String> values) {
@@ -125,20 +188,25 @@ public class GoogleCalendarService {
             throw new BusinessRuleException("Google OAuth is not configured. Set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and GOOGLE_OAUTH_REDIRECT_URI.");
     }
 
-    private String signedState(String payload) {
+    String signedState(String payload) {
         String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
         return encoded + "." + signature(encoded);
     }
 
-    private String verifyState(String state) {
+    record State(String slug, UUID userId) {}
+
+    /** Verifies signature and expiry. Payload: slug|expiryEpochSeconds|userId|nonce. */
+    State parseState(String state) {
         try {
             String[] parts = state.split("\\.", 2);
             if (parts.length != 2 || !MessageDigest.isEqual(signature(parts[0]).getBytes(StandardCharsets.UTF_8), parts[1].getBytes(StandardCharsets.UTF_8)))
                 throw new IllegalArgumentException();
             String payload = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
-            long expiry = Long.parseLong(payload.split("\\|", 3)[1]);
+            String[] fields = payload.split("\\|", 4);
+            if (fields.length != 4) throw new IllegalArgumentException();
+            long expiry = Long.parseLong(fields[1]);
             if (expiry < Instant.now().getEpochSecond()) throw new IllegalArgumentException();
-            return payload;
+            return new State(fields[0], UUID.fromString(fields[2]));
         } catch (Exception ex) { throw new BusinessRuleException("Google authorization state is invalid or expired. Please try again."); }
     }
 

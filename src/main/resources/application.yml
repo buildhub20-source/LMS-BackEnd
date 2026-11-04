@@ -12,6 +12,12 @@ spring:
     default-property-inclusion: non_null
     serialization:
       write-dates-as-timestamps: false
+  # Redis is optional and only used when REDIS_ENABLED=true (see lms.redis).
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      repositories:
+        enabled: false
   datasource:
     # No defaults on purpose. The database is a managed cloud instance in every
     # environment, so a missing value must fail at startup rather than fall back
@@ -95,6 +101,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    redis:
+      enabled: ${REDIS_ENABLED:false}
 
 springdoc:
   swagger-ui:
@@ -104,6 +113,12 @@ springdoc:
     path: /v3/api-docs
 
 lms:
+  # Shared state for running more than one backend copy: sign-in and code-run
+  # rate limits are counted in Redis, and scheduled jobs take a Redis lock so
+  # only one copy runs each sweep. Off = in-process (single copy only).
+  redis:
+    enabled: ${REDIS_ENABLED:false}
+    key-prefix: ${REDIS_KEY_PREFIX:lms:}
   app:
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
   bootstrap:

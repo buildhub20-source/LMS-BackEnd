@@ -28,7 +28,9 @@ import com.lms.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -54,9 +56,55 @@ public class LiveSessionService {
     private final GoogleCalendarService googleCalendarService;
     private final com.lms.platform.service.CentralTenantConfigReader centralTenantConfigReader;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final PlatformTransactionManager transactionManager;
 
-    @Transactional
+    /**
+     * Schedules a class. Not {@code @Transactional} on purpose: the Google Calendar
+     * call for a Meet class happens between two short transactions, so a slow
+     * Google response never holds one of the few pooled database connections.
+     * If saving fails after the Calendar event was created, the event is deleted
+     * again so no orphaned meeting is left on the institute's calendar.
+     */
     public LiveSessionResponse createSession(UUID courseId, CreateLiveSessionRequest request, UUID actorId) {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        PreparedSession prepared = tx.execute(status -> prepareSession(courseId, request, actorId));
+        LiveSession session = prepared.session();
+
+        GoogleCalendarService.MeetEvent meet = null;
+        if ("google_meet".equals(request.sessionMode())) {
+            try { meet = googleCalendarService.createMeetEvent(prepared.config(), request.title(),
+                    request.description(), request.scheduledStart(), request.scheduledEnd());
+            } catch (BusinessRuleException ex) { throw ex; }
+            catch (Exception ex) { throw new BusinessRuleException("Could not create the Google Meet link. Check the Calendar connection and try again."); }
+            session.setGoogleEventId(meet.eventId());
+            session.setMeetingUrl(meet.meetingUrl());
+        }
+
+        try {
+            return tx.execute(status -> {
+                // Re-attach the course and instructor loaded in the first transaction.
+                session.setCourse(courseRepository.findById(courseId)
+                        .orElseThrow(() -> ResourceNotFoundException.of("Course", courseId)));
+                session.setInstructor(userRepository.findById(actorId)
+                        .orElseThrow(() -> ResourceNotFoundException.of("User", actorId)));
+                LiveSession saved = sessionRepository.save(session);
+                log.info("Scheduled Live Session {} for course {}", saved.getId(), saved.getCourse().getTitle());
+
+                // Tells the enrolled students the class is on their calendar. The
+                // reminder mails are not scheduled here: the sweep in
+                // LiveSessionReminderScheduler picks the session up from its start time.
+                eventPublisher.publishEvent(new LiveSessionScheduledEvent(saved.getId(), courseId));
+                return LiveSessionResponse.from(saved);
+            });
+        } catch (RuntimeException ex) {
+            if (meet != null) googleCalendarService.deleteEventQuietly(prepared.config(), meet.eventId());
+            throw ex;
+        }
+    }
+
+    private record PreparedSession(LiveSession session, TenantConfig config) {}
+
+    private PreparedSession prepareSession(UUID courseId, CreateLiveSessionRequest request, UUID actorId) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Course", courseId));
         User instructor = userRepository.findById(actorId)
@@ -110,26 +158,7 @@ public class LiveSessionService {
                 .sessionMode(request.sessionMode())
                 .status(LiveSessionStatus.SCHEDULED)
                 .build();
-
-        if ("google_meet".equals(request.sessionMode())) {
-            GoogleCalendarService.MeetEvent meet;
-            try { meet = googleCalendarService.createMeetEvent(config, request.title(),
-                    request.description(), request.scheduledStart(), request.scheduledEnd());
-            } catch (BusinessRuleException ex) { throw ex; }
-            catch (Exception ex) { throw new BusinessRuleException("Could not create the Google Meet link. Check the Calendar connection and try again."); }
-            session.setGoogleEventId(meet.eventId());
-            session.setMeetingUrl(meet.meetingUrl());
-        }
-
-        LiveSession saved = sessionRepository.save(session);
-        log.info("Scheduled Live Session {} for course {}", saved.getId(), course.getTitle());
-
-        // Tells the enrolled students the class is on their calendar. The
-        // reminder mails are not scheduled here: the sweep in
-        // LiveSessionReminderScheduler picks the session up from its start time.
-        eventPublisher.publishEvent(new LiveSessionScheduledEvent(saved.getId(), course.getId()));
-
-        return LiveSessionResponse.from(saved);
+        return new PreparedSession(session, config);
     }
 
     @Transactional

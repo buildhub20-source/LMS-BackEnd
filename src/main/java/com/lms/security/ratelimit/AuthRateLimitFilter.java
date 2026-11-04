@@ -8,7 +8,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,26 +15,25 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.lms.common.sharedstate.RateLimitStore;
+
 import java.io.IOException;
-import java.time.Clock;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.ToIntFunction;
 
 /**
  * Fixed-window, per-client-IP limit on the public authentication endpoints and
  * on public certificate verification.
  * Runs after Spring's forwarded-header handling, so behind the host's proxy
- * the remote address is the real client.
+ * the remote address is the real client. Counts live in {@link RateLimitStore},
+ * which is Redis when more than one backend copy runs.
  */
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered {
 
-    private static final int PRUNE_THRESHOLD = 10_000;
-
     private final AuthRateLimitProperties properties;
     private final ObjectMapper objectMapper;
-    private final Clock clock;
+    private final RateLimitStore store;
     private final Map<String, ToIntFunction<AuthRateLimitProperties>> limits = Map.of(
             ApiPaths.AUTH + "/login", AuthRateLimitProperties::getLogin,
             ApiPaths.AUTH + "/refresh", AuthRateLimitProperties::getRefresh,
@@ -45,17 +43,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered
             ApiPaths.PLATFORM + "/auth/login", AuthRateLimitProperties::getPlatformLogin);
     /** Every serial and token is its own path, so verification shares one window per client. */
     private static final String CERTIFICATE_VERIFY_PREFIX = ApiPaths.API_V1 + "/certificates/verify/";
-    private final Map<String, Window> windows = new ConcurrentHashMap<>();
 
-    @Autowired
-    public AuthRateLimitFilter(AuthRateLimitProperties properties, ObjectMapper objectMapper) {
-        this(properties, objectMapper, Clock.systemUTC());
-    }
-
-    AuthRateLimitFilter(AuthRateLimitProperties properties, ObjectMapper objectMapper, Clock clock) {
+    public AuthRateLimitFilter(AuthRateLimitProperties properties, ObjectMapper objectMapper, RateLimitStore store) {
         this.properties = properties;
         this.objectMapper = objectMapper;
-        this.clock = clock;
+        this.store = store;
     }
 
     @Override
@@ -88,22 +80,10 @@ public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered
         int limit = CERTIFICATE_VERIFY_PREFIX.equals(path)
                 ? properties.getCertificateVerify()
                 : limits.get(path).applyAsInt(properties);
-        long now = clock.millis();
-        long windowMillis = properties.getWindow().toMillis();
 
-        if (windows.size() > PRUNE_THRESHOLD) {
-            windows.values().removeIf(w -> now - w.start >= windowMillis);
-        }
-
-        Window window = windows.compute(request.getRemoteAddr() + '|' + path, (key, current) ->
-                current == null || now - current.start >= windowMillis ? new Window(now) : current);
-        int count;
-        synchronized (window) {
-            count = ++window.count;
-        }
-
-        if (count > limit) {
-            long retryAfterSeconds = Math.max(1, (window.start + windowMillis - now + 999) / 1000);
+        RateLimitStore.Hit hit = store.add("auth:" + request.getRemoteAddr() + '|' + path, 1, properties.getWindow());
+        if (hit.count() > limit) {
+            long retryAfterSeconds = Math.max(1, (hit.resetsInMillis() + 999) / 1000);
             reject(request, response, retryAfterSeconds);
             return;
         }
@@ -117,14 +97,5 @@ public class AuthRateLimitFilter extends OncePerRequestFilter implements Ordered
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiError.of(ErrorCode.TOO_MANY_REQUESTS.name(),
                 "Too many attempts. Try again in " + retryAfterSeconds + " seconds.", request.getRequestURI()));
-    }
-
-    private static final class Window {
-        private final long start;
-        private int count;
-
-        private Window(long start) {
-            this.start = start;
-        }
     }
 }

@@ -1,5 +1,6 @@
 package com.lms.platform.service;
 
+import com.lms.common.sharedstate.ClusterLock;
 import com.lms.config.PlatformConfig;
 import com.lms.platform.entity.TenantStatus;
 import com.lms.platform.repository.TenantRepository;
@@ -8,10 +9,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 /**
  * Runs outside the provisioning service so every deferred provisioning attempt
  * crosses Spring's transactional proxy. The row lock in progress(...) then
- * serializes scheduler and global-admin retries for the same tenant.
+ * serializes scheduler and global-admin retries for the same tenant. The
+ * cluster lock keeps the sweep to one backend copy at a time.
  */
 @Slf4j
 @Component
@@ -20,12 +24,17 @@ public class TenantProvisioningScheduler {
     private final PlatformConfig platformConfig;
     private final TenantRepository tenantRepository;
     private final TenantProvisioningService provisioningService;
+    private final ClusterLock clusterLock;
 
     @Scheduled(fixedDelayString = "${TENANT_PROVISIONING_POLL_MS:30000}")
     public void progressPendingTenants() {
         if (!platformConfig.isEnabled()) {
             return;
         }
+        clusterLock.runExclusively("tenant-provisioning", Duration.ofMinutes(10), this::sweep);
+    }
+
+    private void sweep() {
         tenantRepository.findByStatus(TenantStatus.PROVISIONING).forEach(tenant -> {
             try {
                 provisioningService.progress(tenant.getId(), null);

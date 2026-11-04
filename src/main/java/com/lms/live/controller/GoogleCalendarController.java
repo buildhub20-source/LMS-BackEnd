@@ -3,11 +3,16 @@ package com.lms.live.controller;
 import com.lms.common.constants.ApiPaths;
 import com.lms.common.response.ApiResponse;
 import com.lms.live.service.GoogleCalendarService;
+import com.lms.security.authentication.AuthenticationService;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +22,7 @@ import java.net.URLEncoder;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
 import com.lms.platform.repository.TenantConfigRepository;
 import com.lms.platform.runtime.TenantContext;
 import com.lms.platform.runtime.TenantSlug;
@@ -25,6 +31,7 @@ import com.lms.platform.runtime.TenantSlug;
 @RequestMapping(ApiPaths.API_V1 + "/live-sessions/google")
 @RequiredArgsConstructor
 public class GoogleCalendarController {
+    static final String LIVE_CLASSES_PATH = "/admin/live-classes";
     private final GoogleCalendarService googleCalendarService;
     private final com.lms.config.PlatformConfig platformConfig;
     private final com.lms.platform.service.CentralTenantConfigReader centralTenantConfigReader;
@@ -42,26 +49,54 @@ public class GoogleCalendarController {
     @GetMapping("/connect")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, String>>> connect() {
-        return ResponseEntity.ok(ApiResponse.of(Map.of("authorizationUrl", googleCalendarService.authorizationUrl())));
+        UUID adminId = AuthenticationService.requirePrincipal().getUserId();
+        return ResponseEntity.ok(ApiResponse.of(Map.of("authorizationUrl", googleCalendarService.authorizationUrl(adminId))));
     }
 
+    public record CompleteConnectionRequest(@NotBlank String code, @NotBlank String state) {}
+
+    /**
+     * Second half of the connection, made by the signed-in admin's browser. The
+     * state must have been issued to this admin in this institute, so a consent
+     * link forwarded to anyone else cannot connect their Google account.
+     */
+    @PostMapping("/complete")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    public ResponseEntity<ApiResponse<Map<String, String>>> complete(@Valid @RequestBody CompleteConnectionRequest request) {
+        UUID adminId = AuthenticationService.requirePrincipal().getUserId();
+        googleCalendarService.completeConnection(request.code(), request.state(), adminId);
+        return ResponseEntity.ok(ApiResponse.of(Map.of("status", "connected")));
+    }
+
+    /**
+     * Google redirects here (public). Nothing is connected at this point: the code
+     * and state are handed to the institute's Live Classes page in the URL fragment
+     * (never sent to a server or in a Referer), and that page finishes the
+     * connection through the signed-in {@code /complete} call.
+     */
     @GetMapping("/callback")
     public void callback(@RequestParam(required = false) String code,
                          @RequestParam(required = false) String state,
                          @RequestParam(required = false) String error,
                          HttpServletResponse response) throws IOException {
         String base = platformConfig.getGoogleCalendar().getFrontendBaseUrl();
-        if (error != null || code == null || state == null) {
-            response.sendRedirect(base + "/admin/analytics?googleMeet=error");
+        String slug;
+        try {
+            slug = state == null ? null : googleCalendarService.tenantSlugFromState(state);
+        } catch (RuntimeException ex) {
+            slug = null;
+        }
+        if (slug == null) {
+            response.sendRedirect(base + LIVE_CLASSES_PATH + "#googleMeet=error");
             return;
         }
-        try {
-            String slug = googleCalendarService.handleCallback(code, state);
-            response.sendRedirect(tenantFrontendUrl(base, platformConfig.getBaseDomain(), slug) + "/admin/analytics?googleMeet=connected");
-        } catch (RuntimeException ex) {
-            response.sendRedirect(base + "/admin/analytics?googleMeet=error&message=" +
-                    URLEncoder.encode(ex.getMessage() == null ? "connection_failed" : ex.getMessage(), StandardCharsets.UTF_8));
+        String target = tenantFrontendUrl(base, platformConfig.getBaseDomain(), slug) + LIVE_CLASSES_PATH;
+        if (error != null || code == null) {
+            response.sendRedirect(target + "#googleMeet=error");
+            return;
         }
+        response.sendRedirect(target + "#googleCode=" + URLEncoder.encode(code, StandardCharsets.UTF_8)
+                + "&googleState=" + URLEncoder.encode(state, StandardCharsets.UTF_8));
     }
 
     static String tenantFrontendUrl(String base, String configuredDomain, String slug) {

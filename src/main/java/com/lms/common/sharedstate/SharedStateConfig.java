@@ -21,7 +21,7 @@ public class SharedStateConfig {
         @Bean
         RateLimitStore redisRateLimitStore(StringRedisTemplate redis,
                                            @Value("${lms.redis.key-prefix:lms:}") String prefix) {
-            return new RedisRateLimitStore(redis, prefix);
+            return new FailoverRateLimitStore(new RedisRateLimitStore(redis, prefix), new InMemoryRateLimitStore());
         }
 
         @Bean

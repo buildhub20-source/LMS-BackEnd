@@ -16,6 +16,11 @@ spring:
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
+      # Short on purpose: sign-in waits on the rate-limit check, so a Redis
+      # outage must fail fast and fall back (FailoverRateLimitStore) rather than
+      # hold every login for the client's 60 s default.
+      timeout: ${REDIS_TIMEOUT:500ms}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
       repositories:
         enabled: false
   datasource:
@@ -101,9 +106,15 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  # Redis and mail stay out of /actuator/health. The backend keeps serving
+  # without either (limits and job locks fall back to this process; mails are
+  # sent in the background and failures are logged), so reporting DOWN would
+  # only make the load balancer pull every copy at once. Outages show in the logs.
   health:
     redis:
-      enabled: ${REDIS_ENABLED:false}
+      enabled: false
+    mail:
+      enabled: false
 
 springdoc:
   swagger-ui:

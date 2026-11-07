@@ -2,7 +2,7 @@
 # terminates the visitor's HTTPS; the Cloudflare Origin certificate in ./certs
 # encrypts Cloudflare -> this VM (SSL mode "Full (strict)").
 #
-#   <institute>.{$BASE_DOMAIN}, {$BASE_DOMAIN}
+#   <institute>.{$BASE_DOMAIN}, platform.{$BASE_DOMAIN} (platform console)
 #       /api/*  -> backend   (same origin: the backend reads the institute
 #                             from the Host header, as in local development)
 #       other   -> frontend  (built pages)
@@ -10,6 +10,8 @@
 #   notify.{$BASE_DOMAIN}  -> notification service
 #
 # The certificate service is internal: the backend proxies to it.
+# {$BASE_DOMAIN} itself and www. are the landing page, hosted elsewhere
+# (Netlify); their DNS records point there, not at this VM.
 
 {
 	# Public certificates come from Cloudflare; no ACME on this host.
@@ -37,7 +39,7 @@ https://notify.{$BASE_DOMAIN} {
 	reverse_proxy notifications:3002
 }
 
-https://{$BASE_DOMAIN}, https://*.{$BASE_DOMAIN} {
+https://*.{$BASE_DOMAIN} {
 	import origin_tls
 	encode gzip
 

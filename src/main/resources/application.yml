@@ -132,6 +132,9 @@ lms:
     key-prefix: ${REDIS_KEY_PREFIX:lms:}
   app:
     frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    # Mail sent for an institute links to <slug>.<this domain>; blank keeps
+    # every link on frontend-base-url (local development).
+    tenant-base-domain: ${TENANT_BASE_DOMAIN:}
   bootstrap:
     admin:
       enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}

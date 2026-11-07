@@ -121,7 +121,8 @@ class TenantSlugDomainTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"www", "api", "admin", "platform", "mail", "localhost", "WWW", " api "})
+    @ValueSource(strings = {"www", "api", "admin", "platform", "mail", "localhost", "WWW", " api ",
+            "chat", "notify", "notifications"})
     @DisplayName("labels that name infrastructure are reserved")
     void infrastructureLabelsReserved(String slug) {
         // Well-formed, but it would shadow a real host on the base domain.

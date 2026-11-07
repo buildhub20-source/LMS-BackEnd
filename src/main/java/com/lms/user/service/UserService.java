@@ -26,7 +26,7 @@ public interface UserService {
 
     UserResponse findById(UUID id);
 
-    PageResponse<UserResponse> search(String search, Boolean active, Boolean locked, Pageable pageable);
+    PageResponse<UserResponse> search(String search, Boolean active, Boolean locked, String role, Pageable pageable);
 
     void changePassword(UUID id, ChangePasswordRequest request);
 

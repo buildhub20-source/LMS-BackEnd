@@ -48,10 +48,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                    or lower(u.email) like lower(concat('%', cast(:search as String), '%')))
               and (:active is null or cast(:active as boolean) is null or u.active = :active)
               and (:locked is null or u.locked = :locked)
+              and (cast(:role as String) is null or exists (
+                   select 1 from UserRole ur
+                   where ur.user = u and upper(ur.role.name) = upper(cast(:role as String))))
             """)
     Page<User> search(@Param("search") String search,
                       @Param("active") Boolean active,
                       @Param("locked") Boolean locked,
+                      @Param("role") String role,
                       Pageable pageable);
 
     @Query("select count(u) from User u join u.userRoles ur where ur.role.name = :roleName")

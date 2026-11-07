@@ -52,9 +52,10 @@ public class UserController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) Boolean locked,
+            @RequestParam(required = false) String role,
             Pageable pageable) {
 
-        return ResponseEntity.ok(ApiResponse.of(userService.search(search, active, locked, pageable)));
+        return ResponseEntity.ok(ApiResponse.of(userService.search(search, active, locked, role, pageable)));
     }
 
     @Operation(summary = "Fetch one user")

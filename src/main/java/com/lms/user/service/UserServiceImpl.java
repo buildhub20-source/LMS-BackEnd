@@ -111,9 +111,11 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public PageResponse<UserResponse> search(String search, Boolean active, Boolean locked, Pageable pageable) {
+    public PageResponse<UserResponse> search(String search, Boolean active, Boolean locked, String role,
+                                             Pageable pageable) {
         String term = StringUtils.hasText(search) ? search.trim() : null;
-        return PageResponse.from(userRepository.search(term, active, locked, PageRequests.sanitize(pageable)),
+        String roleName = StringUtils.hasText(role) ? role.trim() : null;
+        return PageResponse.from(userRepository.search(term, active, locked, roleName, PageRequests.sanitize(pageable)),
                 userMapper::toResponse);
     }
 

@@ -35,12 +35,14 @@ public final class TenantSlug {
     /**
      * Labels that must not become a tenant, because they already name
      * something else on the base domain. A tenant on {@code www} or
-     * {@code api} would shadow the real host.
+     * {@code api} would shadow the real host. {@code chat} and {@code notify}
+     * are where the chat and notification services are served.
      */
     private static final Set<String> RESERVED = Set.of(
             "www", "api", "app", "admin", "platform", "mail", "smtp", "imap",
             "static", "assets", "cdn", "status", "support", "help", "docs",
-            "login", "auth", "test", "staging", "dev", "localhost");
+            "login", "auth", "test", "staging", "dev", "localhost",
+            "chat", "notify", "notifications", "ws", "socket");
 
     private static final Pattern COMPILED = Pattern.compile(SHAPE);
 

@@ -1,0 +1,5 @@
+# Real settings, keys and generated files live only on the VM.
+.env
+env/*.env
+certs/
+cloudflare-ips.caddy

@@ -1,0 +1,90 @@
+# GradusMind on one VM (testing phase): every service as a container, with
+# Caddy as the only one reachable from outside. See README.md.
+#
+# Images are built and published by each repository's CI; this file only
+# pulls and runs them. *_TAG values come from .env next to this file.
+
+name: gradusmind
+
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  caddy:
+    <<: *defaults
+    image: caddy:2.8.4-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      BASE_DOMAIN: ${BASE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./cloudflare-ips.caddy:/etc/caddy/cloudflare-ips.caddy:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+    depends_on:
+      - frontend
+      - backend
+      - chat
+      - notifications
+    mem_limit: 128m
+
+  frontend:
+    <<: *defaults
+    image: ghcr.io/buildhub20-source/lms-frontend/lms-frontend:${FRONTEND_TAG:-dev}
+    mem_limit: 64m
+
+  backend:
+    <<: *defaults
+    image: ghcr.io/buildhub20-source/lms-backend:${BACKEND_TAG:-dev}
+    env_file: env/backend.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      # Fixed heap so two JVMs fit in 4 GB; the container limit leaves room
+      # for metaspace, threads and the per-institute connection pools.
+      JAVA_OPTS: "-Xms256m -Xmx768m -XX:MaxMetaspaceSize=200m -XX:+UseContainerSupport"
+      CERT_SERVICE_URL: http://certificate:8081
+      NOTIFICATION_SERVICE_URL: http://notifications:3002
+    mem_limit: 1152m
+
+  certificate:
+    <<: *defaults
+    image: ghcr.io/buildhub20-source/lms-certificate-service:${CERTIFICATE_TAG:-main}
+    env_file: env/certificate.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8081"
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -XX:+UseContainerSupport"
+      LMS_BACKEND_URL: http://backend:8080
+      NOTIFICATION_SERVICE_URL: http://notifications:3002
+    mem_limit: 640m
+
+  chat:
+    <<: *defaults
+    image: ghcr.io/buildhub20-source/lms-chat-service:${CHAT_TAG:-dev}
+    env_file: env/chat.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      LMS_BACKEND_URL: http://backend:8080
+    mem_limit: 256m
+
+  notifications:
+    <<: *defaults
+    image: ghcr.io/buildhub20-source/lms-notification-service:${NOTIFICATION_TAG:-main}
+    env_file: env/notifications.env
+    environment:
+      NODE_ENV: production
+      PORT: "3002"
+      LMS_BACKEND_URL: http://backend:8080
+    mem_limit: 256m
+
+volumes:
+  caddy_data:

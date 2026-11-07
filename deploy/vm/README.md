@@ -59,9 +59,28 @@ exit                   # log in again so docker works without sudo
 
 ## 4. Settings
 
-Fill in `env/backend.env`, `env/certificate.env`, `env/chat.env` and
-`env/notifications.env`. Secrets marked SAME must match across files;
-generate them on the VM:
+Easiest: upload a working local `LMS-BackEnd/.env` and let the script fill
+all four files. It copies only the cloud settings (database, tenant
+encryption key, Supabase token, R2), generates new JWT and service keys,
+keeps server addresses from the templates, leaves mail off, and deletes the
+upload. Values are never printed.
+
+```powershell
+# on your PC
+scp -i <key.pem> D:\LMS\LMS-BackEnd\.env gradusmind@<vm-ip>:~/local-backend.env
+```
+```bash
+# on the VM
+cd ~/LMS-BackEnd/deploy/vm && ./import-env.sh ~/local-backend.env
+```
+
+Add `--with-mail` to also copy the SMTP settings. Keep the existing
+`TENANT_CREDENTIAL_ENCRYPTION_KEY`: institutes' database passwords are
+encrypted with it.
+
+By hand instead: fill in `env/backend.env`, `env/certificate.env`,
+`env/chat.env` and `env/notifications.env`. Secrets marked SAME must match
+across files; generate them on the VM:
 
 ```bash
 openssl rand -base64 48   # JWT_SECRET, SERVICE_KEY_SECRET

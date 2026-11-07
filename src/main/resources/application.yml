@@ -222,6 +222,9 @@ lms:
     runs-per-minute: ${CODE_RUNNER_RUNS_PER_MINUTE:30}
 
   livekit:
+    # false when there is no LiveKit server: built-in live classes are refused
+    # and the production check does not require LiveKit keys.
+    enabled: ${LIVEKIT_ENABLED:true}
     url: ${LIVEKIT_URL:wss://livekit.cloud.local}
     api-key: ${LIVEKIT_API_KEY:devkey}
     api-secret: ${LIVEKIT_API_SECRET:secret12345678901234567890123456789012}

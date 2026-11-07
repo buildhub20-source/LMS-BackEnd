@@ -84,7 +84,9 @@ public class TenantContextFilter extends OncePerRequestFilter {
         String host = request.getServerName().toLowerCase(Locale.ROOT);
         if (baseDomain != null && !baseDomain.isBlank() && host.endsWith("." + baseDomain.toLowerCase(Locale.ROOT))) {
             String prefix = host.substring(0, host.length() - baseDomain.length() - 1);
-            return prefix.contains(".") || prefix.isBlank() ? null : prefix;
+            // Reserved labels (platform, chat, www, ...) name infrastructure, never
+            // an institute: the platform console on platform.<domain> has no tenant.
+            return prefix.contains(".") || prefix.isBlank() || TenantSlug.isReserved(prefix) ? null : prefix;
         }
         return null;
     }

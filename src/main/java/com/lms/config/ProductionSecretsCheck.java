@@ -45,7 +45,11 @@ public class ProductionSecretsCheck implements EnvironmentPostProcessor, Ordered
         }
 
         List<String> problems = new ArrayList<>();
+        boolean liveKitEnabled = !"false".equalsIgnoreCase(read(environment, "lms.livekit.enabled").trim());
         SECRETS.forEach((name, property) -> {
+            if (!liveKitEnabled && property.startsWith("lms.livekit.")) {
+                return;
+            }
             String value = read(environment, property);
             if (value.isBlank()) {
                 problems.add(name + " is not set");
@@ -56,7 +60,9 @@ public class ProductionSecretsCheck implements EnvironmentPostProcessor, Ordered
             }
         });
 
-        String apiKey = read(environment, "lms.livekit.api-key");
+        // Without a LiveKit server (LIVEKIT_ENABLED=false) built-in classes are
+        // refused at scheduling, so its keys are not needed to start.
+        String apiKey = liveKitEnabled ? read(environment, "lms.livekit.api-key") : "unused";
         if (apiKey.isBlank()) {
             problems.add("LIVEKIT_API_KEY is not set");
         } else if (looksLikePlaceholder(apiKey)) {
@@ -64,7 +70,7 @@ public class ProductionSecretsCheck implements EnvironmentPostProcessor, Ordered
         }
 
         String liveKitUrl = read(environment, "lms.livekit.url").toLowerCase(Locale.ROOT);
-        if (!liveKitUrl.startsWith("wss://") || liveKitUrl.contains(".local")) {
+        if (liveKitEnabled && (!liveKitUrl.startsWith("wss://") || liveKitUrl.contains(".local"))) {
             problems.add("LIVEKIT_URL must be the wss:// address of a real LiveKit server");
         }
 

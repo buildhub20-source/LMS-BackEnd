@@ -142,6 +142,10 @@ public class LiveSessionService {
                 throw new BusinessRuleException("This session mode is not enabled for your organization.");
             }
         }
+        if ("live".equals(request.sessionMode()) && !liveKitService.isEnabled()) {
+            throw new BusinessRuleException(
+                    "Built-in live classes are not available on this server. Use Google Meet for live classes.");
+        }
         String roomName = "google_meet".equals(request.sessionMode()) ? "google-meet-" + sessionId
                 : liveKitService.buildRoomName(tenantId, sessionId);
 

@@ -55,6 +55,27 @@ class ProductionSecretsCheckTest {
         assertThatCode(() -> ProductionSecretsCheck.verify(env)).doesNotThrowAnyException();
     }
 
+    @Test
+    void withoutLiveKitTheLiveKitKeysAreNotRequired() {
+        MockEnvironment env = prod()
+                .withProperty("lms.livekit.enabled", "false")
+                .withProperty("lms.livekit.api-key", "devkey")
+                .withProperty("lms.livekit.api-secret", "")
+                .withProperty("lms.livekit.url", "wss://livekit.cloud.local");
+
+        assertThatCode(() -> ProductionSecretsCheck.verify(env)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void withoutLiveKitOtherSecretsAreStillChecked() {
+        MockEnvironment env = prod()
+                .withProperty("lms.livekit.enabled", "false")
+                .withProperty("lms.security.jwt.secret", "short");
+
+        assertThatThrownBy(() -> ProductionSecretsCheck.verify(env))
+                .hasMessageContaining("JWT_SECRET must be at least");
+    }
+
     private MockEnvironment prod() {
         MockEnvironment env = new MockEnvironment()
                 .withProperty("lms.security.jwt.secret", STRONG)

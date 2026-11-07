@@ -29,6 +29,11 @@ public class LiveKitService {
     /**
      * Builds deterministic room name: tenant-{tenantId}-session-{sessionId}
      */
+    /** False when this deployment has no LiveKit server (LIVEKIT_ENABLED=false). */
+    public boolean isEnabled() {
+        return liveKitConfig.isEnabled();
+    }
+
     public String buildRoomName(UUID tenantId, UUID sessionId) {
         String tId = tenantId != null ? tenantId.toString() : "default";
         return "tenant-" + tId + "-session-" + sessionId.toString();

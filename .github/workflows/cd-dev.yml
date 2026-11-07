@@ -58,12 +58,23 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy
+      # Testing VM (deploy/vm/README.md). Until the DEPLOY_* secrets exist the
+      # image is still published and this step only says so.
+      - name: Deploy to the testing VM
         env:
-          DEPLOY_WEBHOOK: ${{ secrets.DEV_DEPLOY_WEBHOOK }}
-          IMAGE: ${{ env.REGISTRY_IMAGE }}:${{ github.sha }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
-          echo "Deploying $IMAGE to the development environment"
-          # Replace with the actual deployment call for your platform,
-          # for example: kubectl set image / az webapp / aws ecs update-service.
-          test -n "$DEPLOY_WEBHOOK" && curl -fsSL -X POST "$DEPLOY_WEBHOOK" -d "image=$IMAGE" || echo "No webhook configured"
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "DEPLOY_HOST is not set: image published, nothing deployed."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # This repository also holds deploy/vm, so update it before deploying.
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            'cd ~/LMS-BackEnd && git pull --ff-only -q && cd deploy/vm && ./deploy.sh backend'

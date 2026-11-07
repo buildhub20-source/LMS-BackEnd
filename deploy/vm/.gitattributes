@@ -1,0 +1,5 @@
+# Run on Linux: keep Unix line endings whatever the checkout OS.
+*.sh text eol=lf
+Caddyfile text eol=lf
+*.yml text eol=lf
+*.example text eol=lf

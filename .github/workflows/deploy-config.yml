@@ -1,0 +1,46 @@
+name: Deploy config
+
+# Validates deploy/vm (Compose file, Caddyfile, scripts) whenever it changes,
+# so a broken file is caught here rather than on the VM.
+on:
+  pull_request:
+    paths: ["deploy/**", ".github/workflows/deploy-config.yml"]
+  push:
+    branches: [dev, main]
+    paths: ["deploy/**", ".github/workflows/deploy-config.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: deploy/vm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell scripts parse
+        run: for s in *.sh; do bash -n "$s"; done
+
+      - name: Placeholder settings, certificate and Cloudflare ranges
+        run: |
+          cp .env.example .env
+          for f in backend certificate chat notifications; do cp "env/$f.env.example" "env/$f.env"; done
+          mkdir -p certs
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=gradusmind.com" \
+            -keyout certs/origin.key -out certs/origin.pem 2>/dev/null
+          echo "trusted_proxies static 173.245.48.0/20 2400:cb00::/32" > cloudflare-ips.caddy
+
+      - name: Compose file is valid
+        run: docker compose config --quiet
+
+      - name: Caddyfile is valid
+        run: |
+          docker run --rm -e BASE_DOMAIN=gradusmind.com \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$PWD/cloudflare-ips.caddy:/etc/caddy/cloudflare-ips.caddy:ro" \
+            -v "$PWD/certs:/etc/caddy/certs:ro" \
+            caddy:2.8.4-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

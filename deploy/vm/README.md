@@ -7,10 +7,13 @@ not part of this setup.
 ```
 visitor ─► Cloudflare ─► VM :443 ─► Caddy ─┬─ <institute>.gradusmind.com /api/* ─► backend
                                            ├─ <institute>.gradusmind.com (pages) ─► frontend
+                                           ├─ platform.gradusmind.com (console) ─► frontend + backend
                                            ├─ chat.gradusmind.com ──────────────► chat
                                            └─ notify.gradusmind.com ────────────► notifications
                                  backend ─► certificate (internal only)
 ```
+
+`gradusmind.com` and `www` stay on the landing page (Netlify); they never reach this VM.
 
 | Container | Memory limit | Notes |
 |---|---|---|
@@ -26,7 +29,7 @@ is a safety net.
 
 ## 1. Create the VM (Azure portal)
 
-Ubuntu Server 24.04 LTS, size B2s (2 vCPU, 4 GB), region Central India,
+Ubuntu Server 24.04 LTS, size B2als_v2 or B2s (2 vCPU, 4 GB), region Central India,
 SSH key authentication (username `gradusmind`), 32 GB Standard SSD,
 static public IP. Inbound: SSH only at first.
 
@@ -43,8 +46,10 @@ exit                   # log in again so docker works without sudo
 ## 3. DNS and certificate (Cloudflare)
 
 1. Add `gradusmind.com` to Cloudflare and switch the registrar's nameservers.
-2. DNS records, all **proxied** (orange cloud), pointing at the VM's IP:
-   `gradusmind.com`, `*`, `chat`, `notify`.
+   Keep the imported landing-page records (`@` and `www` → Netlify) as
+   **DNS only**, and the Zoho mail records (MX, SPF, DKIM, DMARC) unchanged.
+2. Add A records, **proxied** (orange cloud), pointing at the VM's IP:
+   `*` (every institute), `platform`, `chat`, `notify`.
 3. SSL/TLS mode: **Full (strict)**.
 4. SSL/TLS → Origin Server → **Create certificate** for `gradusmind.com` and
    `*.gradusmind.com`. Save it on the VM as `certs/origin.pem` (certificate)

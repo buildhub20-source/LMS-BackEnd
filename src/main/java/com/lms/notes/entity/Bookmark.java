@@ -40,7 +40,7 @@ public class Bookmark extends Timestamped {
     @Column(name = "course_id", nullable = false)
     private UUID courseId;
 
-    @Column(name = "lesson_id", nullable = false)
+    @Column(name = "lesson_id")
     private UUID lessonId;
 
     /** Optional user-facing label, e.g. "Important formula" */

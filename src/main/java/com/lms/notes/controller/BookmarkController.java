@@ -40,16 +40,16 @@ public class BookmarkController {
         return ResponseEntity.ok(ApiResponse.of(bookmarkService.getBookmarksByCourse(studentId, courseId)));
     }
 
-    /** Check if a specific lesson is bookmarked. */
+    /** Check if a lesson, or without {@code lessonId} the course, is bookmarked. */
     @GetMapping("/check")
     public ResponseEntity<ApiResponse<Map<String, Boolean>>> isBookmarked(
-            @RequestParam UUID courseId, @RequestParam UUID lessonId) {
+            @RequestParam UUID courseId, @RequestParam(required = false) UUID lessonId) {
         UUID studentId = AuthenticationService.requirePrincipal().getUserId();
         boolean bookmarked = bookmarkService.isBookmarked(studentId, courseId, lessonId);
         return ResponseEntity.ok(ApiResponse.of(Map.of("bookmarked", bookmarked)));
     }
 
-    /** Toggle bookmark on/off for a lesson. Returns { bookmarked: true/false }. */
+    /** Toggle a lesson bookmark, or without {@code lessonId} a course bookmark. Returns { bookmarked: true/false }. */
     @PostMapping("/toggle")
     public ResponseEntity<ApiResponse<Map<String, Boolean>>> toggleBookmark(
             @Valid @RequestBody BookmarkRequest request) {

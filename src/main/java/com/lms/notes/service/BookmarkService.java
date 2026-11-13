@@ -69,7 +69,7 @@ public class BookmarkService {
     /** A lesson bookmark, or the course bookmark when {@code lessonId} is null. */
     private Optional<Bookmark> find(UUID studentId, UUID courseId, UUID lessonId) {
         return lessonId == null
-                ? bookmarkRepository.findByStudentIdAndCourseIdAndLessonIdIsNull(studentId, courseId)
+                ? bookmarkRepository.findFirstByStudentIdAndCourseIdAndLessonIdIsNull(studentId, courseId)
                 : bookmarkRepository.findByStudentIdAndCourseIdAndLessonId(studentId, courseId, lessonId);
     }
 

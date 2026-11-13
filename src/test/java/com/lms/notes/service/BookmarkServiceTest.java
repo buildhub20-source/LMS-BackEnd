@@ -22,7 +22,7 @@ class BookmarkServiceTest {
 
     @Test
     void bookmarksAWholeCourseWhenNoLessonIsGiven() {
-        when(repository.findByStudentIdAndCourseIdAndLessonIdIsNull(student, course)).thenReturn(Optional.empty());
+        when(repository.findFirstByStudentIdAndCourseIdAndLessonIdIsNull(student, course)).thenReturn(Optional.empty());
 
         boolean now = service.toggleBookmark(student, BookmarkRequest.builder().courseId(course).label("Java").build());
 
@@ -37,7 +37,7 @@ class BookmarkServiceTest {
     @Test
     void removesTheCourseBookmarkOnSecondToggle() {
         Bookmark existing = Bookmark.builder().studentId(student).courseId(course).build();
-        when(repository.findByStudentIdAndCourseIdAndLessonIdIsNull(student, course)).thenReturn(Optional.of(existing));
+        when(repository.findFirstByStudentIdAndCourseIdAndLessonIdIsNull(student, course)).thenReturn(Optional.of(existing));
 
         boolean now = service.toggleBookmark(student, BookmarkRequest.builder().courseId(course).build());
 
@@ -52,6 +52,6 @@ class BookmarkServiceTest {
         when(repository.findByStudentIdAndCourseIdAndLessonId(student, course, lesson)).thenReturn(Optional.empty());
 
         assertThat(service.isBookmarked(student, course, lesson)).isFalse();
-        verify(repository, never()).findByStudentIdAndCourseIdAndLessonIdIsNull(any(), any());
+        verify(repository, never()).findFirstByStudentIdAndCourseIdAndLessonIdIsNull(any(), any());
     }
 }

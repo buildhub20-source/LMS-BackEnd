@@ -20,7 +20,7 @@ public interface BookmarkRepository extends JpaRepository<Bookmark, UUID> {
     Optional<Bookmark> findByStudentIdAndCourseIdAndLessonId(UUID studentId, UUID courseId, UUID lessonId);
 
     /** The bookmark for a whole course, as opposed to one of its lessons. */
-    Optional<Bookmark> findByStudentIdAndCourseIdAndLessonIdIsNull(UUID studentId, UUID courseId);
+    Optional<Bookmark> findFirstByStudentIdAndCourseIdAndLessonIdIsNull(UUID studentId, UUID courseId);
 
     Optional<Bookmark> findByIdAndStudentId(UUID id, UUID studentId);
 

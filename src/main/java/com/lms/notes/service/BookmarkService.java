@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -34,7 +35,7 @@ public class BookmarkService {
 
     @Transactional(readOnly = true)
     public boolean isBookmarked(UUID studentId, UUID courseId, UUID lessonId) {
-        return bookmarkRepository.existsByStudentIdAndCourseIdAndLessonId(studentId, courseId, lessonId);
+        return find(studentId, courseId, lessonId).isPresent();
     }
 
     /**
@@ -43,8 +44,7 @@ public class BookmarkService {
      */
     @Transactional
     public boolean toggleBookmark(UUID studentId, BookmarkRequest request) {
-        var existing = bookmarkRepository.findByStudentIdAndCourseIdAndLessonId(
-                studentId, request.getCourseId(), request.getLessonId());
+        var existing = find(studentId, request.getCourseId(), request.getLessonId());
 
         if (existing.isPresent()) {
             bookmarkRepository.delete(existing.get());
@@ -64,6 +64,13 @@ public class BookmarkService {
     public void deleteBookmark(UUID studentId, UUID bookmarkId) {
         bookmarkRepository.findByIdAndStudentId(bookmarkId, studentId)
                 .ifPresent(bookmarkRepository::delete);
+    }
+
+    /** A lesson bookmark, or the course bookmark when {@code lessonId} is null. */
+    private Optional<Bookmark> find(UUID studentId, UUID courseId, UUID lessonId) {
+        return lessonId == null
+                ? bookmarkRepository.findByStudentIdAndCourseIdAndLessonIdIsNull(studentId, courseId)
+                : bookmarkRepository.findByStudentIdAndCourseIdAndLessonId(studentId, courseId, lessonId);
     }
 
     private BookmarkResponse toResponse(Bookmark bookmark) {

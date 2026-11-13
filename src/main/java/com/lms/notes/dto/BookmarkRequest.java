@@ -16,7 +16,7 @@ public class BookmarkRequest {
     @NotNull
     private UUID courseId;
 
-    @NotNull
+    /** Leave out to bookmark the whole course. */
     private UUID lessonId;
 
     private String label;
